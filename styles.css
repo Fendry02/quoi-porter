@@ -1,0 +1,453 @@
+/*
+ * La page est une fenêtre : chaque journée est un panneau dont le ciel reprend
+ * la météo réelle de ce jour-là. On voit donc le changement d'aujourd'hui à
+ * demain avant même d'avoir lu un mot.
+ *
+ * Répartition des rôles typographiques :
+ *   Newsreader (serif) → le conseil, subjectif, écrit comme on le dirait ;
+ *   DM Mono            → les mesures, objectives, alignées comme sur un cadran.
+ */
+
+:root {
+  --serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --gutter: clamp(1.5rem, 5vw, 5rem);
+  --rule: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  position: relative;
+  margin: 0;
+  min-height: 100svh;
+  background: #10161c;
+  font-family: var(--serif);
+  color: #f2f5f6;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+:where(a, button, input):focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ---------------------------------------------------------------- masthead */
+
+/* Posé par-dessus le ciel d'aujourd'hui plutôt qu'au-dessus de lui : une
+   bande opaque couperait la page en deux avant même qu'on lise quoi que ce soit. */
+.masthead {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 2;
+  padding: clamp(1rem, 3vw, 1.75rem) var(--gutter);
+  color: var(--ink, #f2f5f6);
+}
+
+.place {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6ch;
+  padding: 0.4em 0.2em;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  opacity: 0.72;
+  transition: opacity 160ms ease;
+}
+
+.place:hover,
+.place[aria-expanded='true'] {
+  opacity: 1;
+}
+
+.place__pin {
+  width: 0.45em;
+  height: 0.45em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.finder {
+  margin-top: 0.75rem;
+  max-width: 26rem;
+}
+
+.finder[hidden] {
+  display: none;
+}
+
+.finder__form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.finder__input,
+.finder__submit {
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  padding: 0.65em 0.9em;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+}
+
+.finder__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.finder__input::placeholder {
+  color: currentColor;
+  opacity: 0.45;
+}
+
+.finder__submit {
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 160ms ease;
+}
+
+.finder__submit:hover {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.finder__status {
+  margin: 0.6rem 0 0;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  opacity: 0.7;
+}
+
+.finder__status:empty {
+  display: none;
+}
+
+.finder__results {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.finder__results li + li {
+  border-top: 1px solid var(--rule);
+}
+
+.finder__result {
+  width: 100%;
+  padding: 0.7em 0.2em;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-family: var(--serif);
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 140ms ease;
+}
+
+.finder__result:hover {
+  opacity: 1;
+}
+
+/* -------------------------------------------------------------- les jours */
+
+#days {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+/* Aujourd'hui occupe la majeure partie de l'écran, mais pas tout : demain doit
+   dépasser sous la ligne de flottaison pour qu'on sache qu'il est là. */
+.day {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: clamp(1rem, 2.5vw, 1.75rem);
+  padding: clamp(2rem, 6vw, 4.5rem) var(--gutter);
+  min-height: 70svh;
+  background-image: linear-gradient(158deg, var(--sky-from), var(--sky-to));
+  color: var(--ink);
+}
+
+/* Laisse la place au masthead, qui flotte par-dessus. */
+.day--today {
+  padding-top: clamp(4.75rem, 11vw, 7.5rem);
+}
+
+/* Demain compte moins qu'aujourd'hui au moment où on s'habille : sa présence
+   à l'écran le dit avant que le texte ne le dise. */
+.day--tomorrow {
+  min-height: 0;
+  gap: clamp(0.75rem, 1.5vw, 1rem);
+  padding-block: clamp(1.75rem, 4vw, 3rem);
+}
+
+.day__label {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.day__phrase {
+  margin: 0;
+  max-width: 22ch;
+  font-size: clamp(2.1rem, 7.5vw, 4.75rem);
+  font-weight: 300;
+  font-variation-settings: 'opsz' 60;
+  line-height: 1.02;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.day--tomorrow .day__phrase {
+  max-width: 34ch;
+  font-size: clamp(1.35rem, 3.4vw, 2.1rem);
+  font-variation-settings: 'opsz' 24;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+/* Le ressenti en italique : c'est le chiffre sur lequel la tenue se décide. */
+.day__phrase em {
+  font-style: italic;
+  font-weight: 300;
+}
+
+.day__notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  max-width: 46ch;
+  font-size: clamp(0.95rem, 1.6vw, 1.15rem);
+  line-height: 1.4;
+  opacity: 0.8;
+}
+
+.day--tomorrow .day__notes {
+  font-size: clamp(0.875rem, 1.2vw, 0.975rem);
+}
+
+.day__notes li {
+  padding-left: 1.1em;
+  text-indent: -1.1em;
+}
+
+.day__notes li::before {
+  content: '— ';
+  opacity: 0.5;
+}
+
+/* La bande de mesures : tout ce qui est chiffré, aligné, sans interprétation. */
+.day__strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 clamp(1.25rem, 3vw, 2.5rem);
+  margin: 0;
+  padding-top: clamp(0.75rem, 2vw, 1.25rem);
+  border-top: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+}
+
+.day__measure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding-block: 0.5rem;
+}
+
+.day__measure dt {
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.5;
+}
+
+.day__measure dd {
+  margin: 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------- ciels, par code WMO */
+
+[data-sky='clear'] {
+  --sky-from: #a9cde8;
+  --sky-to: #f6e8cd;
+  --ink: #172a3d;
+}
+
+[data-sky='cloudy'] {
+  --sky-from: #bcc6cd;
+  --sky-to: #e9ebec;
+  --ink: #242c33;
+}
+
+[data-sky='overcast'] {
+  --sky-from: #8e99a2;
+  --sky-to: #c2c9ce;
+  --ink: #1a2127;
+}
+
+[data-sky='fog'] {
+  --sky-from: #b2b6b1;
+  --sky-to: #dcded9;
+  --ink: #262a27;
+}
+
+[data-sky='rain'] {
+  --sky-from: #33474f;
+  --sky-to: #6d8189;
+  --ink: #f3f6f7;
+}
+
+[data-sky='snow'] {
+  --sky-from: #ccd6e4;
+  --sky-to: #f4f6fa;
+  --ink: #1f2b42;
+}
+
+[data-sky='storm'] {
+  --sky-from: #2b2a36;
+  --sky-to: #565064;
+  --ink: #f5f2f7;
+}
+
+/* ------------------------------------------------ chargement et erreurs */
+
+.state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.25rem;
+  min-height: 70svh;
+  padding: clamp(5rem, 10vw, 7rem) var(--gutter) clamp(2rem, 6vw, 4.5rem);
+}
+
+.state__message {
+  margin: 0;
+  max-width: 26ch;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+.state__detail {
+  margin: 0;
+  max-width: 48ch;
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  opacity: 0.7;
+}
+
+.state__action {
+  align-self: start;
+  padding: 0.7em 1.2em;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+
+.state__action:hover {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.skeleton__bar {
+  height: clamp(2rem, 6vw, 3.75rem);
+  border-radius: 3px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton__bar:nth-child(2) {
+  width: 74%;
+  animation-delay: 120ms;
+}
+
+.skeleton__bar:nth-child(3) {
+  width: 46%;
+  animation-delay: 240ms;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* --------------------------------------------------------------- entrée */
+
+/* Une seule séquence, au chargement : les ciels se lèvent l'un après l'autre. */
+.day {
+  animation: rise 620ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.day--tomorrow {
+  animation-delay: 110ms;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

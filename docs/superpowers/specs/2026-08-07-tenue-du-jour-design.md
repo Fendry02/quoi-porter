@@ -177,7 +177,7 @@ Chacun est une fonction pure indépendante prenant `(DayWeather, Outfit)` et ret
 
 | Modificateur | Déclencheur | Effet |
 |---|---|---|
-| Pluie | `precipitationProbability ≥ 40` ou `precipitationMm > 1` | `outer` devient imperméable ; ajoute `parapluie` ; alerte `rain` |
+| Pluie | `precipitationProbability ≥ 40` ou `precipitationMm > 1` | `outer` devient imperméable, **sauf si c'était déjà un manteau** — un imperméable seul ne tient pas chaud par grand froid, on laisse alors le parapluie gérer l'eau. Ajoute `parapluie`, **sauf s'il neige** (code WMO de neige), où le parapluie ne sert à rien et où l'alerte parle de neige et non de pluie. Alerte `rain` |
 | Vent | `windGustsKmh ≥ 40` | garantit une couche extérieure coupe-vent : si `outer` est `null`, il devient coupe-vent ; si c'est déjà un imperméable ou un manteau, il est conservé tel quel (ils coupent déjà le vent) ; alerte `wind` |
 | Vent fort | `windGustsKmh ≥ 60` | retire `parapluie` s'il a été ajouté ; alerte `wind` en `high` avec la mention que le parapluie est inutilisable |
 | Amplitude | `tempMax − tempMin > 10` | alerte `swing` : prévoir de pouvoir enlever une couche |
@@ -188,7 +188,8 @@ L'ordre compte : le modificateur Vent fort doit s'exécuter après Pluie pour po
 le parapluie que celui-ci vient d'ajouter.
 
 Les codes WMO neige/grésil retenus sont : 71, 73, 75, 77, 85, 86 (neige) et 66, 67
-(pluie verglaçante).
+(pluie verglaçante). Seuls les codes de neige suppriment le parapluie : sous une pluie
+verglaçante, il reste utile.
 
 ## Formulation
 
@@ -196,6 +197,10 @@ Les codes WMO neige/grésil retenus sont : 71, 73, 75, 77, 85, 86 (neige) et 66,
 liste des points d'attention.
 
 Ton : celui d'un proche qui te prévient avant que tu sortes.
+
+L'accroche s'appuie sur le ressenti minimum, cohérente avec le barème. Exception : quand une
+alerte `heat` est levée, elle s'appuie sur le ressenti maximum. Ouvrir sur « température
+agréable, 19 °C » une journée qui finit à 33 °C serait trompeur.
 
 > « Il va faire frisquet ce matin, 6 °C ressentis — pull et veste. Et prends un parapluie,
 > ça tombe en fin d'aprèm. »
@@ -219,11 +224,25 @@ Structure de sortie :
 
 Une page, deux blocs empilés : Aujourd'hui puis Demain.
 
+Le parti pris visuel : **chaque bloc est un ciel**. Son dégradé de fond est dérivé du code
+WMO du jour (dégagé, couvert, brouillard, pluie, neige, orage), avec une couleur d'encre
+choisie pour chacun. On voit donc le basculement d'aujourd'hui à demain avant d'avoir lu un
+mot. Le sélecteur de lieu flotte par-dessus le ciel du jour et en reprend l'encre.
+
+Les rôles typographiques encodent une distinction réelle : une serif de lecture porte le
+conseil, subjectif ; une monospace porte les mesures, objectives.
+
+Aujourd'hui occupe environ 70 % de la hauteur d'écran, de sorte que Demain dépasse sous la
+ligne de flottaison — sa taille de texte réduite dit la même chose que sa position.
+
 Chaque bloc contient, de haut en bas :
 
 1. le libellé du jour,
 2. la phrase, en typographie large — c'est l'élément dominant,
-3. un bandeau météo compact : min/max, icône du code WMO, probabilité de pluie, vent,
+3. un bandeau météo compact en typographie monospace : température réelle et ressentie
+   (min → max), probabilité et cumul de pluie, rafales, indice UV, et la condition du code
+   WMO **en toutes lettres** plutôt qu'en icône — un jeu d'icônes à maintenir n'apporterait
+   rien de plus qu'« averses de neige »,
 4. les points d'attention, en liste courte.
 
 En haut de page, un sélecteur de lieu discret affichant la ville courante, cliquable pour

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Qu'est-ce que je mets ?</title>
+    <meta name="description" content="Ce qu'il faut porter aujourd'hui et demain, selon la météo." />
+    <meta name="color-scheme" content="light" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;1,6..72,300&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <header class="masthead">
+      <button type="button" id="place-toggle" class="place" aria-expanded="false" aria-controls="place-panel">
+        <span class="place__pin" aria-hidden="true"></span>
+        <span id="place-name">Localisation…</span>
+      </button>
+
+      <div id="place-panel" class="finder" hidden>
+        <form id="place-form" class="finder__form" role="search">
+          <label class="visually-hidden" for="place-input">Ville</label>
+          <input
+            id="place-input"
+            class="finder__input"
+            type="search"
+            name="ville"
+            placeholder="Nantes, Lisbonne, Oslo…"
+            autocomplete="off"
+            enterkeyhint="search"
+          />
+          <button type="submit" class="finder__submit">Chercher</button>
+        </form>
+        <p id="place-status" class="finder__status" role="status" aria-live="polite"></p>
+        <ul id="place-results" class="finder__results"></ul>
+      </div>
+    </header>
+
+    <main id="days" aria-live="polite"></main>
+
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>
