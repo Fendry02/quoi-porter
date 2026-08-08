@@ -133,8 +133,11 @@ function buildChart(timeline, label) {
     svg('circle', { cx: timeline.peak.x, cy: timeline.peak.y, r: 1.1, class: 'chart__peak' }),
   );
 
-  // Les repères vivent en HTML plutôt qu'en SVG : le viewBox est étiré pour
-  // remplir la largeur, ce qui déformerait le texte s'il était dedans.
+  // Le texte vit en HTML plutôt qu'en SVG : le viewBox est étiré pour remplir
+  // la largeur, ce qui déformerait les lettres s'il était dedans.
+  const plot = element('div', 'chart__plot');
+  plot.append(graph, buildPeakLabel(timeline.peak));
+
   const axis = element('figcaption', 'chart__axis');
   for (const tick of timeline.ticks) {
     const mark = element('span', 'chart__tick', tick.label);
@@ -142,8 +145,25 @@ function buildChart(timeline, label) {
     axis.append(mark);
   }
 
-  figure.append(graph, axis);
+  figure.append(plot, axis);
   return figure;
+}
+
+/**
+ * La valeur du pic, seul chiffre porté par la courbe. Sans lui, le tracé
+ * montre une forme sans jamais dire de combien elle monte.
+ */
+function buildPeakLabel(peak) {
+  const label = element('span', 'chart__peak-label', peak.label);
+
+  label.style.left = `${peak.x}%`;
+  label.style.top = `${(peak.y / VIEW.height) * 100}%`;
+
+  // Collé à un bord, un libellé centré déborderait : on le rabat vers l'intérieur.
+  const alignement = peak.x < 12 ? '0' : peak.x > 88 ? '-100%' : '-50%';
+  label.style.transform = `translate(${alignement}, -140%)`;
+
+  return label;
 }
 
 /**

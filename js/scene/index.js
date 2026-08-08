@@ -133,6 +133,10 @@ export function createScene(canvas) {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height, false);
+
+    // En mouvement réduit aucune boucle ne tourne : sans ce repeint, tourner
+    // son téléphone laisserait un ciel noir ou étiré.
+    if (reduced) renderOnce();
   }
 
   function renderOnce() {
@@ -183,7 +187,17 @@ export function createScene(canvas) {
     frameId = null;
   }
 
-  const onVisibility = () => (document.hidden ? stop() : start());
+  const onVisibility = () => {
+    if (document.hidden) {
+      stop();
+      return;
+    }
+
+    // Une même raison qu'au redimensionnement : sans boucle, le contexte WebGL
+    // peut revenir vide après un passage en arrière-plan.
+    if (reduced) renderOnce();
+    else start();
+  };
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('resize', resize);
 

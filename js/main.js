@@ -19,6 +19,13 @@ import {
 const STORAGE_KEY = 'weather-clothes.place';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * Au-delà de ce délai, la prévision affichée n'est plus de confiance : l'heure
+ * a bougé, donc la fenêtre de la courbe et la hauteur du soleil aussi, et le
+ * jour a pu changer de date.
+ */
+const STALE_AFTER_MS = 10 * 60 * 1000;
+
 const canvas = document.getElementById('sky');
 const track = document.getElementById('track');
 const stage = document.getElementById('stage');
@@ -38,6 +45,10 @@ const placeResults = document.getElementById('place-results');
 let scene = null;
 /** Les deux ambiances entre lesquelles le défilement fait la navette. */
 let moods = null;
+/** Le lieu affiché, pour pouvoir se rafraîchir sans le redemander. */
+let currentPlace = null;
+/** Horodatage du dernier affichage réussi. */
+let lastRenderedAt = 0;
 
 /* ------------------------------------------------------------------ lieu */
 
@@ -139,9 +150,21 @@ async function loadScene() {
   }
 }
 
+/**
+ * La scène arrive souvent après la météo, puisque les deux partent ensemble.
+ * On lui donne alors les ambiances déjà calculées.
+ */
+function attachScene() {
+  if (!scene || !moods) return;
+
+  scene.setMoods(moods[0], moods[1]);
+  scene.start();
+  onScroll();
+}
+
 /* --------------------------------------------------------------- affichage */
 
-function showDays(forecast) {
+function showDays(forecast, { silent = false } = {}) {
   const now = new Date();
 
   const days = forecast.slice(0, 2).map((weather) => {
@@ -156,36 +179,50 @@ function showDays(forecast) {
 
   stateEl.hidden = true;
 
+  // L'animation d'arrivée n'appartient qu'au premier affichage. Il faut retirer
+  // la classe *avant* de remplacer les enfants : le sélecteur porte sur eux, et
+  // des enfants neufs sous une classe encore posée rejoueraient l'animation.
+  todayEl.classList.toggle('day--enter', !silent);
+
   renderDay(todayEl, days[0], 'Aujourd’hui');
   renderDay(tomorrowEl, days[1], 'Demain');
   renderTeaser(teaser, days[1]);
-
-  todayEl.classList.add('day--enter');
 
   // Demain est montré à la même heure qu'il est maintenant : on compare deux
   // matins, ou deux nuits, jamais un matin et une nuit.
   moods = [moodFor(days[0].weather, now), moodFor(days[1].weather, new Date(now.getTime() + DAY_MS))];
 
-  if (scene) {
-    scene.setMoods(moods[0], moods[1]);
-    scene.start();
-  }
-
+  attachScene();
   track.style.display = '';
+  lastRenderedAt = Date.now();
   onScroll();
 }
 
-async function show(place) {
+/**
+ * @param {object} place
+ * @param {{silent?: boolean}} options `silent` garde le contenu à l'écran
+ *   pendant la requête, pour qu'un rafraîchissement de fond ne fasse pas
+ *   clignoter le squelette.
+ */
+async function show(place, { silent = false } = {}) {
+  currentPlace = place;
   placeName.textContent = place.name;
-  todayEl.hidden = true;
-  tomorrowEl.hidden = true;
-  teaser.hidden = true;
-  track.style.display = 'none';
-  renderState(stateEl, { detail: `Prévision pour ${place.name}…`, skeleton: true });
+
+  if (!silent) {
+    todayEl.hidden = true;
+    tomorrowEl.hidden = true;
+    teaser.hidden = true;
+    track.style.display = 'none';
+    renderState(stateEl, { detail: `Prévision pour ${place.name}…`, skeleton: true });
+  }
 
   try {
-    showDays(await fetchForecast(place.latitude, place.longitude));
+    showDays(await fetchForecast(place.latitude, place.longitude), { silent });
   } catch (error) {
+    // Un rafraîchissement de fond qui échoue ne doit pas effacer une prévision
+    // encore lisible : on garde l'écran tel quel et on réessaiera plus tard.
+    if (silent) return;
+
     renderState(stateEl, {
       message: 'Impossible de récupérer la météo.',
       detail:
@@ -196,6 +233,31 @@ async function show(place) {
     });
   }
 }
+
+/**
+ * Revalidation. Sans elle, une page laissée ouverte le matin conseille encore
+ * la tenue du matin le soir venu, sous un ciel figé à l'aube.
+ *
+ * On refait la requête plutôt que de seulement recalculer l'heure : après
+ * minuit, le « jour 0 » de la prévision est devenu la veille.
+ */
+function refreshIfStale() {
+  if (document.hidden || !currentPlace) return;
+  // Tant que rien n'a été affiché, `lastRenderedAt` vaut zéro et tout paraît
+  // périmé : un événement de focus pendant la requête initiale déclencherait
+  // un second appel et effacerait l'animation d'arrivée.
+  if (lastRenderedAt === 0) return;
+  if (Date.now() - lastRenderedAt < STALE_AFTER_MS) return;
+
+  show(currentPlace, { silent: true });
+}
+
+document.addEventListener('visibilitychange', refreshIfStale);
+window.addEventListener('focus', refreshIfStale);
+
+// On sonde bien plus souvent que le seuil : sonder à la même période ne
+// déclencherait qu'un tick sur deux, et la cadence réelle vaudrait le double.
+setInterval(refreshIfStale, 60 * 1000);
 
 function selectPlace(place) {
   storePlace(place);
@@ -276,12 +338,19 @@ window.addEventListener('resize', onScroll);
 /* ------------------------------------------------------------ démarrage */
 
 async function start() {
-  scene = await loadScene();
+  // La scène part en même temps que la météo, pas avant : trois.js pèse
+  // 170 Ko et la phrase n'a aucune raison de l'attendre.
+  const sceneReady = loadScene().then((created) => {
+    scene = created;
+    attachScene();
+  });
+
   crossFade(0);
 
   const stored = readStoredPlace();
   if (stored) {
     show(stored);
+    await sceneReady;
     return;
   }
 
@@ -290,10 +359,12 @@ async function start() {
   const located = await locate();
   if (located) {
     selectPlace(located);
+    await sceneReady;
     return;
   }
 
   askForPlace();
+  await sceneReady;
 }
 
 start();

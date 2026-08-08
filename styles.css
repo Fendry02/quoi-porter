@@ -509,6 +509,10 @@ body {
   padding-top: clamp(0.4rem, 1.4vw, 0.8rem);
 }
 
+.chart__plot {
+  position: relative;
+}
+
 .chart__svg {
   display: block;
   width: 100%;
@@ -541,6 +545,19 @@ body {
 .chart__peak {
   fill: currentColor;
   opacity: 0.9;
+}
+
+/* Le seul chiffre porté par la courbe : sans lui, on lit une forme sans
+   jamais savoir de combien elle monte. */
+.chart__peak-label {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.75;
+  pointer-events: none;
 }
 
 .chart__axis {

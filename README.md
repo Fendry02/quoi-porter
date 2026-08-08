@@ -60,7 +60,12 @@ hauteur du soleil, calculée **à l'heure du lieu consulté** et non à celle du
 
 La scène est une **amélioration progressive** : si three.js ne se charge pas, ou si WebGL
 manque, la page retombe sur un dégradé CSS calculé depuis le même `SkyMood`. Rien de ce
-qu'elle raconte n'est perdu.
+qu'elle raconte n'est perdu. Elle est aussi chargée **en parallèle** de la requête météo,
+jamais avant : la phrase n'a aucune raison d'attendre 170 Ko d'animation.
+
+La prévision se revalide au retour sur l'onglet et toutes les dix minutes, sans faire
+clignoter le squelette. Sans ça, une page ouverte le matin conseillerait encore la tenue du
+matin le soir venu — et après minuit, le « jour 0 » de la prévision serait devenu la veille.
 
 Deux partis pris dans le moteur de règles :
 
