@@ -4,6 +4,15 @@ import assert from 'node:assert/strict';
 import { buildOutfit } from '../js/rules.js';
 
 /**
+ * Journée plate : le ressenti ne bouge pas de la journée, donc le point
+ * d'habillage vaut exactement ce ressenti. Indispensable pour tester les bornes
+ * du barème sans que la pondération d'amplitude ne déplace le résultat.
+ */
+function flatDay(ressenti, overrides = {}) {
+  return calmDay({ feelsLikeMin: ressenti, feelsLikeMax: ressenti, ...overrides });
+}
+
+/**
  * Construit un DayWeather calme : pas de pluie, pas de vent, pas d'UV.
  * Les tests du barème de base peuvent ainsi isoler l'effet de la température.
  */
@@ -84,16 +93,57 @@ test('barème de base : sous zéro — sous-couche, gants et bonnet', () => {
 
 test('les bornes du barème sont inclusives par le bas', () => {
   // 25 appartient au palier canicule, 24,9 au palier en dessous.
-  assert.equal(buildOutfit(calmDay({ feelsLikeMin: 25 })).layers.bottom, 'short');
-  assert.equal(buildOutfit(calmDay({ feelsLikeMin: 24.9 })).layers.bottom, 'pantalon léger');
+  assert.equal(buildOutfit(flatDay(25)).layers.bottom, 'short');
+  assert.equal(buildOutfit(flatDay(24.9)).layers.bottom, 'pantalon léger');
 
   // 10 n'a pas encore de couche extérieure, 9,9 en a une.
-  assert.equal(buildOutfit(calmDay({ feelsLikeMin: 10 })).layers.outer, null);
-  assert.equal(buildOutfit(calmDay({ feelsLikeMin: 9.9 })).layers.outer, 'veste');
+  assert.equal(buildOutfit(flatDay(10)).layers.outer, null);
+  assert.equal(buildOutfit(flatDay(9.9)).layers.outer, 'veste');
 
   // 5 est encore en veste, 4,9 passe au manteau.
-  assert.equal(buildOutfit(calmDay({ feelsLikeMin: 5 })).layers.outer, 'veste');
-  assert.equal(buildOutfit(calmDay({ feelsLikeMin: 4.9 })).layers.outer, 'manteau');
+  assert.equal(buildOutfit(flatDay(5)).layers.outer, 'veste');
+  assert.equal(buildOutfit(flatDay(4.9)).layers.outer, 'manteau');
+});
+
+/* ------------------------------------------- le point d'habillage pondéré */
+
+test('la tenue se décide sur le ressenti min plus 40 % de l’amplitude', () => {
+  // Une journée qui démarre à 14 et monte à 25 se vit surtout autour de 18.
+  // Habiller pour 14 imposerait un pull toute la journée.
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 14, feelsLikeMax: 25 }));
+
+  assert.equal(outfit.dressedFor, 18.4);
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'chemise']);
+  assert.equal(outfit.layers.outer, null);
+});
+
+test('sans amplitude, le point d’habillage vaut le ressenti lui-même', () => {
+  const outfit = buildOutfit(flatDay(14));
+
+  assert.equal(outfit.dressedFor, 14);
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull']);
+});
+
+test('le biais reste vers le froid : on ne vise jamais le milieu de journée', () => {
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 14, feelsLikeMax: 25 }));
+  const milieu = (14 + 25) / 2;
+
+  assert.ok(
+    outfit.dressedFor < milieu,
+    `le point retenu (${outfit.dressedFor}) doit rester sous la moyenne (${milieu})`,
+  );
+  assert.ok(outfit.dressedFor > 14, 'mais au-dessus du minimum');
+});
+
+test('gants et bonnet restent liés au ressenti minimum, pas au point d’habillage', () => {
+  // Point d'habillage à 0, donc pas de sous-couche — mais il fera -4 le matin
+  // et les extrémités, elles, subissent bien ce minimum-là.
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: -4, feelsLikeMax: 6 }));
+
+  assert.equal(outfit.dressedFor, 0);
+  assert.ok(outfit.accessories.includes('gants'));
+  assert.ok(outfit.accessories.includes('bonnet'));
+  assert.ok(alertOfKind(outfit, 'cold'), 'l’alerte cold suit le minimum, elle aussi');
 });
 
 function alertOfKind(outfit, kind) {
@@ -154,6 +204,23 @@ test('vent : une couche coupe-vent apparaît quand il n’y en avait pas', () =>
   assert.equal(alertOfKind(outfit, 'wind').severity, 'medium');
 });
 
+test('vent chaud : on signale les rafales sans imposer de couche', () => {
+  // 40 km/h par 26°C ressentis, c'est agréable. Un coupe-vent serait absurde,
+  // mais l'information reste utile.
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 23, feelsLikeMax: 30, windGustsKmh: 45 }));
+
+  assert.equal(outfit.layers.outer, null, 'pas de couche extérieure par cette chaleur');
+  assert.ok(alertOfKind(outfit, 'wind'), 'les rafales restent signalées');
+});
+
+test('vent : la couche coupe-vent n’apparaît qu’en dessous de 20°C d’habillage', () => {
+  const frais = buildOutfit(flatDay(19.9, { windGustsKmh: 45 }));
+  const doux = buildOutfit(flatDay(20, { windGustsKmh: 45 }));
+
+  assert.equal(frais.layers.outer, 'coupe-vent');
+  assert.equal(doux.layers.outer, null);
+});
+
 test('vent : un manteau déjà présent est conservé, il coupe déjà le vent', () => {
   const outfit = buildOutfit(calmDay({ feelsLikeMin: 2, windGustsKmh: 45 }));
 
@@ -183,16 +250,30 @@ test('vent fort sans pluie : pas de mention du parapluie', () => {
   assert.ok(!outfit.accessories.includes('parapluie'));
 });
 
-test('forte amplitude : une alerte swing invite à pouvoir enlever une couche', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 8, tempMin: 6, tempMax: 20 }));
+test('forte amplitude : l’alerte swing donne les deux bouts de la journée', () => {
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 8, feelsLikeMax: 22 }));
   const alert = alertOfKind(outfit, 'swing');
 
-  assert.ok(alert, 'une alerte swing est attendue au-delà de 10°C d’amplitude');
-  assert.ok(alert.hint.length > 0);
+  assert.ok(alert, 'une alerte swing est attendue au-delà de 10°C d’amplitude ressentie');
+
+  // Depuis qu'on habille pour un point pondéré, « prévois d'enlever une couche »
+  // ne suffit plus : il faut les deux extrêmes pour que la personne juge.
+  assert.match(alert.hint, /8\s*°C/, 'le ressenti le plus frais doit apparaître');
+  assert.match(alert.hint, /22\s*°C/, 'le ressenti le plus chaud doit apparaître');
+});
+
+test('l’amplitude se mesure sur le ressenti, comme tout le reste du moteur', () => {
+  // 14°C d'écart en température réelle, mais seulement 5 en ressenti :
+  // le vent aplatit la journée, il n'y a rien à ajuster.
+  const outfit = buildOutfit(
+    calmDay({ tempMin: 6, tempMax: 20, feelsLikeMin: 8, feelsLikeMax: 13 }),
+  );
+
+  assert.equal(alertOfKind(outfit, 'swing'), undefined);
 });
 
 test('amplitude modérée : pas d’alerte swing', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 8, tempMin: 6, tempMax: 15 }));
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 8, feelsLikeMax: 15 }));
 
   assert.equal(alertOfKind(outfit, 'swing'), undefined);
 });
@@ -275,8 +356,10 @@ test('pluie par grand froid : le manteau n’est pas dégradé en imperméable',
 
 test('les hints utilisent une espace insécable devant les unités', () => {
   const outfit = buildOutfit(
-    calmDay({ feelsLikeMin: 8, tempMin: 6, tempMax: 20, windGustsKmh: 45, uvIndex: 8 }),
+    calmDay({ feelsLikeMin: 8, feelsLikeMax: 22, windGustsKmh: 45, uvIndex: 8 }),
   );
+
+  assert.ok(outfit.alerts.length >= 3, 'ce cas doit produire plusieurs hints à vérifier');
 
   for (const alert of outfit.alerts) {
     assert.doesNotMatch(

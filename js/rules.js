@@ -7,9 +7,32 @@
  * Deux principes guident le barème :
  *  - on décide sur le ressenti (apparent temperature), qui intègre déjà vent,
  *    humidité et rayonnement solaire ;
- *  - on habille pour le ressenti *minimum* du jour, car avoir froid est plus
- *    pénible qu'avoir un peu trop chaud et qu'une couche s'enlève.
+ *  - on habille pour un point situé entre le ressenti minimum et le maximum,
+ *    biaisé vers le froid (voir COLD_BIAS).
  */
+
+/**
+ * Part de l'amplitude ajoutée au ressenti minimum pour obtenir le point
+ * d'habillage.
+ *
+ * Viser le minimum seul serait trop prudent : une amplitude de 12 °C n'a rien
+ * d'exceptionnel en mi-saison, et imposerait un pull des journées entières qui
+ * montent à 27 °C. Viser la moyenne serait trop optimiste, car on sort souvent
+ * le matin, au plus frais. À 0,4 le point reste sous la moyenne : le biais vers
+ * le froid est conservé, sans la caricature.
+ */
+const COLD_BIAS = 0.4;
+
+/**
+ * Le ressenti pour lequel on habille effectivement.
+ *
+ * @param {object} weather un DayWeather normalisé
+ * @returns {number} °C ressentis
+ */
+export function dressingPoint(weather) {
+  const amplitude = weather.feelsLikeMax - weather.feelsLikeMin;
+  return weather.feelsLikeMin + COLD_BIAS * Math.max(0, amplitude);
+}
 
 /**
  * Paliers du barème de base, du plus chaud au plus froid.
@@ -55,15 +78,19 @@ function temperatureAlerts(weather) {
 }
 
 function baseOutfit(weather) {
-  const tier = TIERS.find((t) => weather.feelsLikeMin >= t.min);
+  const dressedFor = dressingPoint(weather);
+  const tier = TIERS.find((t) => dressedFor >= t.min);
 
   return {
+    dressedFor,
     layers: {
       top: [...tier.top],
       bottom: tier.bottom,
       outer: tier.outer,
       feet: tier.feet,
     },
+    // Les extrémités, elles, subissent bien le minimum de la journée : gants et
+    // bonnet se glissent dans une poche, autant les prendre s'il gèle au réveil.
     accessories: weather.feelsLikeMin < 0 ? ['gants', 'bonnet'] : [],
     alerts: temperatureAlerts(weather),
   };
@@ -71,6 +98,9 @@ function baseOutfit(weather) {
 
 /** Ces couches extérieures coupent déjà le vent : inutile d'en ajouter une. */
 const WINDPROOF_OUTERS = ['coupe-vent', 'imperméable', 'manteau'];
+
+/** Au-dessus de ce point d'habillage, le vent ne justifie plus de couche. */
+const WIND_SHELL_MAX_TEMP = 20;
 
 /** Codes WMO de chute de neige. 71/73/75 neige, 77 grains, 85/86 averses. */
 const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
@@ -131,9 +161,14 @@ const MODIFIERS = [
   function wind(weather, outfit) {
     if (weather.windGustsKmh < 40) return outfit;
 
-    const outer = WINDPROOF_OUTERS.includes(outfit.layers.outer)
-      ? outfit.layers.outer
-      : 'coupe-vent';
+    // Au-delà de ce seuil, le vent est rafraîchissant plutôt que pénible : on
+    // signale les rafales, mais imposer un coupe-vent par 26°C serait absurde.
+    const needsShell = outfit.dressedFor < WIND_SHELL_MAX_TEMP;
+
+    const outer =
+      !needsShell || WINDPROOF_OUTERS.includes(outfit.layers.outer)
+        ? outfit.layers.outer
+        : 'coupe-vent';
 
     return withAlert(
       { ...outfit, layers: { ...outfit.layers, outer } },
@@ -169,12 +204,16 @@ const MODIFIERS = [
   },
 
   function swing(weather, outfit) {
-    if (weather.tempMax - weather.tempMin <= 10) return outfit;
+    // Sur le ressenti, comme le reste du moteur : un fort écart de température
+    // réelle que le vent aplatit ne demande aucun ajustement.
+    if (weather.feelsLikeMax - weather.feelsLikeMin <= 10) return outfit;
 
+    // On a habillé pour un point intermédiaire : donner les deux bouts permet
+    // de juger soi-même s'il faut une couche en plus au départ.
     return withAlert(outfit, {
       kind: 'swing',
       severity: 'medium',
-      hint: `${Math.round(weather.tempMax - weather.tempMin)}${NBSP}°C d’écart dans la journée : prévois de pouvoir enlever une couche.`,
+      hint: `${Math.round(weather.feelsLikeMin)}${NBSP}°C au plus frais, ${Math.round(weather.feelsLikeMax)}${NBSP}°C au plus chaud — prévois de pouvoir ajuster.`,
     });
   },
 

@@ -82,12 +82,13 @@ function noteFor(alert, outfit) {
  * @returns {{ headline: string, notes: string[] }}
  */
 export function describeDay(weather, outfit) {
-  // On ouvre normalement sur le ressenti minimum — c'est lui qui dicte la tenue.
-  // Exception : les journées qui démarrent fraîches et finissent caniculaires,
-  // où ouvrir sur le minimum donnerait une accroche trompeuse.
+  // On annonce le ressenti pour lequel la tenue a été décidée, sans quoi la
+  // phrase contredirait les vêtements qu'elle recommande.
+  // Exception : les journées qui finissent caniculaires, où même le point
+  // d'habillage sous-vend la chaleur à venir.
   const pivot = outfit.alerts.some((a) => a.kind === 'heat')
     ? weather.feelsLikeMax
-    : weather.feelsLikeMin;
+    : outfit.dressedFor;
 
   const opener = OPENERS.find((o) => pivot >= o.min);
   const variant = opener.variants[variantIndex(weather.date, opener.variants.length)];

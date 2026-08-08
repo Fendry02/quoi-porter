@@ -50,10 +50,16 @@ test('la headline mentionne les vêtements recommandés', () => {
   assert.match(headline, /veste/i);
 });
 
-test('la headline mentionne la température ressentie', () => {
-  const { headline } = describe({ feelsLikeMin: 6 });
+test('la headline annonce le ressenti pour lequel on a habillé', () => {
+  // Journée plate : le point d'habillage vaut le ressenti lui-même.
+  const plat = describe({ feelsLikeMin: 6, feelsLikeMax: 6 });
+  assert.match(plat.headline, /6\s*°C/);
 
-  assert.match(headline, /6\s*°C/);
+  // Journée à amplitude : c'est le point pondéré (14 + 0,4 × 11 = 18,4) qui
+  // est annoncé, pas le minimum — sinon la phrase contredirait la tenue.
+  const ample = describe({ feelsLikeMin: 14, feelsLikeMax: 25 });
+  assert.match(ample.headline, /18\s*°C/);
+  assert.doesNotMatch(ample.headline, /14\s*°C/);
 });
 
 test('deux appels avec la même date donnent exactement la même sortie', () => {
@@ -82,8 +88,7 @@ test('des dates différentes font varier la formulation', () => {
 test('chaque alerte de l’Outfit produit une note', () => {
   const weather = calmDay({
     feelsLikeMin: 2,
-    tempMin: 1,
-    tempMax: 14,
+    feelsLikeMax: 16,
     precipitationProbability: 80,
     precipitationMm: 6,
   });
@@ -98,7 +103,7 @@ test('chaque alerte de l’Outfit produit une note', () => {
 });
 
 test('journée sans particularité : aucune note', () => {
-  const { notes } = describe({ feelsLikeMin: 16 });
+  const { notes } = describe({ feelsLikeMin: 16, feelsLikeMax: 21 });
 
   assert.deepEqual(notes, []);
 });
@@ -129,7 +134,7 @@ test('la note de pluie ne propose un parapluie que s’il est dans l’Outfit', 
 test('journée à grosse amplitude : l’accroche ne minimise pas la chaleur à venir', () => {
   // 19°C au réveil, 33°C l'après-midi. Ouvrir sur « température agréable »
   // serait trompeur alors qu'une alerte canicule est levée.
-  const { headline } = describe({ feelsLikeMin: 19, feelsLikeMax: 33, tempMin: 18, tempMax: 31 });
+  const { headline } = describe({ feelsLikeMin: 19, feelsLikeMax: 33 });
 
   assert.match(headline, /chaud|chaleur|taper|caniculaire/i);
 });
@@ -137,8 +142,7 @@ test('journée à grosse amplitude : l’accroche ne minimise pas la chaleur à 
 test('les notes sont ordonnées par gravité décroissante', () => {
   const weather = calmDay({
     feelsLikeMin: 12,
-    tempMin: 10,
-    tempMax: 24,
+    feelsLikeMax: 26,
     precipitationProbability: 45,
     precipitationMm: 1.5,
     windGustsKmh: 65,

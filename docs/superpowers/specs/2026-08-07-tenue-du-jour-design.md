@@ -108,6 +108,7 @@ Produit par `rules.js`, consommé par `phrasing.js` et `render.js`.
 
 ```js
 {
+  dressedFor: 18.4,            // °C ressentis visés par cette tenue
   layers: {
     top: ['t-shirt', 'pull'],    // du plus près du corps vers l'extérieur
     bottom: 'jean',
@@ -132,17 +133,28 @@ L'apparent temperature d'Open-Meteo intègre déjà le vent, l'humidité et le r
 solaire. 12 °C avec 40 km/h de vent n'est pas 12 °C. Le barème s'appuie donc sur le
 ressenti, pas sur la température brute.
 
-### Le pivot est le ressenti minimum
+### Le pivot est un point pondéré, biaisé vers le froid
 
-On habille pour le pire moment de la journée. Avoir froid est plus pénible qu'avoir un peu
-trop chaud, et une couche s'enlève. La contrepartie — surhabiller les journées à forte
-amplitude — est traitée par une alerte dédiée plutôt qu'en abaissant le barème.
+    dressingPoint = feelsLikeMin + 0,4 × (feelsLikeMax − feelsLikeMin)
+
+Viser le ressenti minimum seul serait trop prudent. Une amplitude de 12 °C n'a rien
+d'exceptionnel en mi-saison : ce serait un pull imposé des journées entières qui montent à
+27 °C — pas un cas limite, mais le cas courant. Viser la moyenne serait à l'inverse trop
+optimiste, puisqu'on sort souvent le matin, au plus frais.
+
+À 0,4 le point retenu reste sous la moyenne : le biais vers le froid est conservé sans la
+caricature. Deux choses restent délibérément accrochées au ressenti **minimum**, parce
+qu'elles concernent le moment le plus froid et non la journée moyenne : les gants et le
+bonnet, qui tiennent dans une poche, et l'alerte `cold`.
+
+Le point retenu est exposé dans l'Outfit sous `dressedFor`, ce qui permet à `phrasing.js`
+d'annoncer le ressenti qui correspond réellement aux vêtements recommandés.
 
 ### Barème de base
 
-Entrée : `feelsLikeMin`. Bornes inférieures incluses, supérieures exclues.
+Entrée : `dressingPoint`. Bornes inférieures incluses, supérieures exclues.
 
-| Ressenti min | Haut | Bas | Pieds |
+| Point d'habillage | Haut | Bas | Pieds |
 |---|---|---|---|
 | ≥ 25 °C | t-shirt | short | baskets |
 | 20 – 25 | t-shirt | pantalon léger | baskets |
@@ -155,18 +167,19 @@ Entrée : `feelsLikeMin`. Bornes inférieures incluses, supérieures exclues.
 La couche extérieure (`outer`) suit le palier, et peut ensuite être remplacée par les
 modificateurs :
 
-| Ressenti min | `outer` par défaut |
+| Point d'habillage | `outer` par défaut |
 |---|---|
 | ≥ 10 °C | `null` |
 | 5 – 10 | veste |
 | < 5 | manteau |
 
-En dessous de 0 °C, `accessories` reçoit d'office `gants` et `bonnet`.
+En dessous de 0 °C **de ressenti minimum** (et non de point d'habillage), `accessories`
+reçoit d'office `gants` et `bonnet`.
 
 Le barème de base émet aussi deux alertes de température, seules sources des `kind` `cold`
 et `heat` :
 
-- `feelsLikeMin < 0` → alerte `cold` en `high`
+- `feelsLikeMin < 0` → alerte `cold` en `high` (sur le minimum, pas sur le point d'habillage)
 - `feelsLikeMax ≥ 30` → alerte `heat` en `medium`, `high` au-delà de 35 (hydratation, éviter
   le plein soleil)
 
@@ -178,9 +191,9 @@ Chacun est une fonction pure indépendante prenant `(DayWeather, Outfit)` et ret
 | Modificateur | Déclencheur | Effet |
 |---|---|---|
 | Pluie | `precipitationProbability ≥ 40` ou `precipitationMm > 1` | `outer` devient imperméable, **sauf si c'était déjà un manteau** — un imperméable seul ne tient pas chaud par grand froid, on laisse alors le parapluie gérer l'eau. Ajoute `parapluie`, **sauf s'il neige** (code WMO de neige), où le parapluie ne sert à rien et où l'alerte parle de neige et non de pluie. Alerte `rain` |
-| Vent | `windGustsKmh ≥ 40` | garantit une couche extérieure coupe-vent : si `outer` est `null`, il devient coupe-vent ; si c'est déjà un imperméable ou un manteau, il est conservé tel quel (ils coupent déjà le vent) ; alerte `wind` |
+| Vent | `windGustsKmh ≥ 40` | garantit une couche extérieure coupe-vent **si `dressedFor < 20 °C`** : au-dessus, le vent rafraîchit plutôt qu'il ne gêne, et un coupe-vent par 26 °C serait absurde — l'alerte `wind` est alors émise seule. Si `outer` est déjà un imperméable ou un manteau, il est conservé (ils coupent déjà le vent). Alerte `wind` |
 | Vent fort | `windGustsKmh ≥ 60` | retire `parapluie` s'il a été ajouté ; alerte `wind` en `high` avec la mention que le parapluie est inutilisable |
-| Amplitude | `tempMax − tempMin > 10` | alerte `swing` : prévoir de pouvoir enlever une couche |
+| Amplitude | `feelsLikeMax − feelsLikeMin > 10` | alerte `swing` donnant les deux extrêmes (« 15 °C au plus frais, 30 °C au plus chaud »). L'écart se mesure sur le ressenti comme le reste du moteur : un fort écart de température réelle que le vent aplatit ne demande aucun ajustement. Puisqu'on habille pour un point intermédiaire, donner les deux bouts permet de juger soi-même s'il faut une couche de plus au départ |
 | UV | `uvIndex ≥ 6` | ajoute `lunettes` ; alerte `uv` (crème solaire) |
 | Neige / verglas | `weatherCode` dans les codes neige/grésil WMO | `feet` devient chaussures adhérentes ; alerte `ice` |
 
@@ -198,9 +211,10 @@ liste des points d'attention.
 
 Ton : celui d'un proche qui te prévient avant que tu sortes.
 
-L'accroche s'appuie sur le ressenti minimum, cohérente avec le barème. Exception : quand une
-alerte `heat` est levée, elle s'appuie sur le ressenti maximum. Ouvrir sur « température
-agréable, 19 °C » une journée qui finit à 33 °C serait trompeur.
+L'accroche annonce `outfit.dressedFor`, le ressenti pour lequel la tenue a été décidée : la
+phrase ne peut donc pas contredire les vêtements qu'elle recommande. Exception : quand une
+alerte `heat` est levée, elle s'appuie sur le ressenti maximum, car même le point
+d'habillage sous-vendrait la chaleur à venir.
 
 > « Il va faire frisquet ce matin, 6 °C ressentis — pull et veste. Et prends un parapluie,
 > ça tombe en fin d'aprèm. »
@@ -297,7 +311,11 @@ navigateur, sinon invite à saisir une ville.
 - pluie battante : imperméable et parapluie présents
 - vent fort **et** pluie : parapluie absent, alerte `wind` en `high` — vérifie l'ordre des
   modificateurs
-- forte amplitude : alerte `swing` présente
+- forte amplitude : alerte `swing` présente, mentionnant les deux extrêmes
+- amplitude réelle forte mais ressentie faible : pas d'alerte `swing`
+- vent fort par temps chaud : alerte `wind` sans couche extérieure ajoutée
+- point d'habillage : pondération correcte, biais vers le froid préservé, gants et alerte
+  `cold` toujours accrochés au ressenti minimum
 - neige : chaussures adhérentes, alerte `ice`
 - chaque borne du barème de base
 
