@@ -85,7 +85,7 @@ test('des dates différentes font varier la formulation', () => {
   );
 });
 
-test('chaque alerte de l’Outfit produit une note', () => {
+test('chaque alerte non promue produit une note', () => {
   const weather = calmDay({
     feelsLikeMin: 2,
     feelsLikeMax: 16,
@@ -96,7 +96,8 @@ test('chaque alerte de l’Outfit produit une note', () => {
   const { notes } = describeDay(weather, outfit);
 
   assert.ok(outfit.alerts.length >= 2, 'ce cas doit générer plusieurs alertes');
-  assert.equal(notes.length, outfit.alerts.length);
+  // Une seule alerte remonte dans la phrase ; toutes les autres restent en note.
+  assert.equal(notes.length, outfit.alerts.length - 1);
   for (const note of notes) {
     assert.ok(note.trim().length > 0);
   }
@@ -108,27 +109,21 @@ test('journée sans particularité : aucune note', () => {
   assert.deepEqual(notes, []);
 });
 
-test('la note de pluie ne propose un parapluie que s’il est dans l’Outfit', () => {
+test('on ne propose jamais un parapluie que le vent vient d’écarter', () => {
   const avecParapluie = describe({ precipitationProbability: 80, precipitationMm: 6 });
-  assert.ok(
-    avecParapluie.notes.some((n) => /parapluie/i.test(n)),
-    'le parapluie retenu doit être proposé',
-  );
+  assert.match(avecParapluie.headline, /parapluie/i, 'le parapluie retenu doit être proposé');
 
-  // Rafales à 70 km/h : rules.js a retiré le parapluie. La note de pluie ne
-  // doit donc pas le proposer, sinon on contredit l'alerte de vent.
+  // Rafales à 70 km/h : rules.js a retiré le parapluie, et c'est le vent qui
+  // est promu. Nulle part on ne doit conseiller d'en prendre un.
   const ventFort = describe({
     precipitationProbability: 80,
     precipitationMm: 6,
     windGustsKmh: 70,
   });
-  const notePluie = ventFort.notes.find((n) => /pleuv|pluie/i.test(n));
+  const partout = [ventFort.headline, ...ventFort.notes].join(' ');
 
-  assert.ok(notePluie, 'une note de pluie est attendue');
-  assert.ok(
-    !/prends un parapluie/i.test(notePluie),
-    'ne pas proposer un parapluie que le vent vient d’écarter',
-  );
+  assert.doesNotMatch(partout, /prends (un|quand même un) parapluie/i);
+  assert.match(partout, /pleuv|pluie/i, 'la pluie reste annoncée, elle');
 });
 
 test('journée à grosse amplitude : l’accroche ne minimise pas la chaleur à venir', () => {
@@ -148,15 +143,133 @@ test('les notes sont ordonnées par gravité décroissante', () => {
     windGustsKmh: 65,
   });
   const outfit = buildOutfit(weather);
-  const { notes } = describeDay(weather, outfit);
+  const { headline, notes } = describeDay(weather, outfit);
 
   // Les alertes sortent de rules.js dans l'ordre pluie (medium), vent (high),
-  // amplitude (medium). La note du vent doit remonter en tête.
+  // amplitude (medium). Le vent, le plus grave, est promu dans la phrase ;
+  // les deux autres restent en note.
   assert.deepEqual(
     outfit.alerts.map((a) => `${a.kind}:${a.severity}`),
     ['rain:medium', 'wind:high', 'swing:medium'],
   );
 
-  assert.equal(notes.length, 3);
-  assert.match(notes[0], /rafales|vent|souffle/i, 'la note la plus grave doit venir en premier');
+  assert.match(headline, /souffle|rafales|capuche/i, 'le plus grave monte dans la phrase');
+  assert.equal(notes.length, 2);
+  assert.ok(!notes.some((n) => /rafales|souffle/i.test(n)), 'et quitte les notes');
+});
+
+test('à gravité inégale, la note la plus grave vient en premier', () => {
+  const weather = calmDay({
+    feelsLikeMin: -3,       // alerte cold, gravité high
+    feelsLikeMax: 12,       // alerte swing, gravité medium
+  });
+  const { notes } = describeDay(weather, buildOutfit(weather));
+
+  assert.equal(notes.length, 2);
+  assert.match(notes[0], /gèle|extrémités/i);
+  assert.match(notes[1], /plus frais|ajuster/i);
+});
+
+/* --------------------------------------------- la clause de la headline */
+
+function alertKinds(outfit) {
+  return outfit.alerts.map((a) => a.kind);
+}
+
+test('la pluie retenue passe dans la phrase principale', () => {
+  // Ce qu'on emporte change : ça mérite mieux qu'une note en dessous.
+  const { headline } = describe({
+    feelsLikeMin: 24, feelsLikeMax: 35,
+    precipitationProbability: 80, precipitationMm: 6,
+  });
+
+  assert.match(headline, /parapluie/i);
+});
+
+test('l’alerte promue disparaît des notes', () => {
+  const weather = calmDay({
+    feelsLikeMin: 24, feelsLikeMax: 35,
+    precipitationProbability: 80, precipitationMm: 6,
+  });
+  const outfit = buildOutfit(weather);
+  const { headline, notes } = describeDay(weather, outfit);
+
+  assert.match(headline, /parapluie/i);
+  assert.ok(alertKinds(outfit).includes('rain'), 'l’alerte pluie existe bien');
+  assert.ok(
+    !notes.some((n) => /pleuv|pluie|parapluie/i.test(n)),
+    'la pluie ne doit pas être répétée en note',
+  );
+  assert.equal(notes.length, outfit.alerts.length - 1);
+});
+
+test('le verglas passe avant tout le reste', () => {
+  const { headline } = describe({
+    feelsLikeMin: -1, feelsLikeMax: 2, weatherCode: 73,
+    precipitationProbability: 90, precipitationMm: 8, windGustsKmh: 50,
+  });
+
+  assert.match(headline, /accroch|glisse|semelle|verglas/i);
+});
+
+test('le vent passe avant la pluie, sinon on proposerait un parapluie inutile', () => {
+  const { headline, notes } = describe({
+    feelsLikeMin: 4, feelsLikeMax: 9,
+    precipitationProbability: 90, precipitationMm: 9, windGustsKmh: 85,
+  });
+
+  assert.match(headline, /capuche|souffle|rafales|vent/i);
+  assert.doesNotMatch(headline, /prends un parapluie/i);
+  assert.ok(!notes.some((n) => /rafales/i.test(n)), 'le vent promu quitte les notes');
+});
+
+test('le gel et la canicule ne donnent pas de clause : l’accroche le dit déjà', () => {
+  const gel = describe({ feelsLikeMin: -6, feelsLikeMax: -2, weatherCode: 0 });
+  const canicule = describe({ feelsLikeMin: 28, feelsLikeMax: 36, weatherCode: 0, uvIndex: 2 });
+
+  // Une seule phrase, terminée par le point de la liste de vêtements.
+  assert.equal(gel.headline.match(/\./g).length, 1, gel.headline);
+  assert.equal(canicule.headline.match(/\./g).length, 1, canicule.headline);
+});
+
+test('l’amplitude reste une note, ce n’est pas quelque chose qu’on emporte', () => {
+  const weather = calmDay({ feelsLikeMin: 10, feelsLikeMax: 24 });
+  const outfit = buildOutfit(weather);
+  const { headline, notes } = describeDay(weather, outfit);
+
+  assert.doesNotMatch(headline, /plus frais|ajuster/i);
+  assert.ok(notes.some((n) => /plus frais/i.test(n)));
+});
+
+test('sans rien à emporter, la phrase reste courte', () => {
+  const { headline } = describe({ feelsLikeMin: 16, feelsLikeMax: 20 });
+
+  assert.equal(headline.match(/\./g).length, 1);
+});
+
+test('une seule clause, même quand plusieurs alertes qualifient', () => {
+  const weather = calmDay({
+    feelsLikeMin: 3, feelsLikeMax: 8,
+    precipitationProbability: 90, precipitationMm: 9,
+    windGustsKmh: 45, uvIndex: 8,
+  });
+  const outfit = buildOutfit(weather);
+  const { notes } = describeDay(weather, outfit);
+
+  // Exactement une alerte a été promue, pas deux.
+  assert.equal(notes.length, outfit.alerts.length - 1);
+});
+
+test('la clause est déterministe et varie selon la date', () => {
+  const params = { feelsLikeMin: 12, feelsLikeMax: 17, precipitationProbability: 80, precipitationMm: 6 };
+
+  assert.equal(describe(params).headline, describe(params).headline);
+
+  // On isole la clause : sans ça, la variation de l'accroche suffirait à faire
+  // passer le test sans rien prouver sur la clause elle-même.
+  const clauseSeule = (h) => h.split('. ').slice(1).join('. ');
+  const dates = ['2026-01-05', '2026-03-19', '2026-06-14', '2026-09-02', '2026-11-23'];
+  const clauses = new Set(dates.map((date) => clauseSeule(describe({ ...params, date }).headline)));
+
+  assert.ok(clauses.size > 1, `une seule formulation de clause : ${[...clauses]}`);
 });

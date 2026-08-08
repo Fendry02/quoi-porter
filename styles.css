@@ -93,8 +93,11 @@ body {
   z-index: 2;
   display: grid;
   place-items: center;
-  padding: clamp(4.5rem, 12vh, 8rem) var(--gutter) clamp(5rem, 14vh, 8rem);
+  padding: clamp(4rem, 10vh, 6rem) var(--gutter) clamp(6.5rem, 16vh, 9rem);
   pointer-events: none;
+  /* Le bloc doit tenir dans l'écran : le rogner vaut mieux que de le laisser
+     passer sous l'annonce de demain. */
+  overflow: hidden;
 }
 
 /*
@@ -120,7 +123,7 @@ body {
   width: min(62ch, 100%);
   display: flex;
   flex-direction: column;
-  gap: clamp(1rem, 2.5vw, 1.6rem);
+  gap: clamp(0.7rem, 1.8vw, 1.2rem);
   /* Le fondu croisé est piloté image par image depuis le JavaScript. */
   opacity: 0;
   will-change: opacity, transform;
@@ -142,10 +145,10 @@ body {
 
 .day__phrase {
   margin: 0;
-  font-size: clamp(2rem, 5.6vw, 4rem);
+  font-size: clamp(1.75rem, 4.4vw, 3.1rem);
   font-weight: 300;
   font-variation-settings: 'opsz' 60;
-  line-height: 1.05;
+  line-height: 1.08;
   letter-spacing: -0.02em;
   text-wrap: balance;
   /* Une ombre portée large et très douce : invisible en tant qu'ombre, mais
@@ -491,4 +494,68 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* --------------------------------------------- le déroulé de la journée */
+
+/*
+ * Le ressenti heure par heure, et la pluie dessous. C'est ce qui rend lisible
+ * un « 31 °C avec un peu de pluie » : on voit où est le pic et quand ça tombe.
+ * Registre des mesures, donc traits fins et monospace.
+ */
+.chart {
+  position: relative;
+  margin: 0;
+  padding-top: clamp(0.4rem, 1.4vw, 0.8rem);
+}
+
+.chart__svg {
+  display: block;
+  width: 100%;
+  height: clamp(2.75rem, 6.5vw, 3.75rem);
+  overflow: visible;
+}
+
+.chart__area {
+  fill: currentColor;
+  opacity: 0.09;
+}
+
+.chart__curve {
+  fill: none;
+  stroke: currentColor;
+  /* Le viewBox est étiré horizontalement : sans cela l'épaisseur du trait
+     le serait aussi, et la courbe paraîtrait grasse. */
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.chart__rain {
+  fill: currentColor;
+  opacity: 0.34;
+}
+
+.chart__peak {
+  fill: currentColor;
+  opacity: 0.9;
+}
+
+.chart__axis {
+  position: relative;
+  height: 1.2em;
+  margin-top: 0.6rem;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+}
+
+.chart__tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }

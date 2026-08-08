@@ -6,6 +6,8 @@
  * à l'écran.
  */
 
+import { VIEW } from './timeline.js';
+
 /** Code WMO → libellé lisible. */
 const CONDITIONS = new Map([
   [0, 'ciel dégagé'],
@@ -93,9 +95,76 @@ function buildPhrase(headline) {
   return node;
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svg(tag, attributes) {
+  const node = document.createElementNS(SVG_NS, tag);
+  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+  return node;
+}
+
+/**
+ * Le déroulé de la journée : le ressenti heure par heure, et la pluie dessous.
+ *
+ * C'est lui qui rend lisible un « 31 °C avec un peu de pluie » — tu vois que le
+ * pic est à 16 h et l'averse à 19 h.
+ *
+ * @param {object} timeline la géométrie produite par buildTimeline
+ * @param {string} label texte alternatif pour qui n'accède pas au graphique
+ */
+function buildChart(timeline, label) {
+  const { width, height } = VIEW;
+  const figure = element('figure', 'chart');
+
+  const graph = svg('svg', {
+    viewBox: `0 0 ${width} ${height}`,
+    preserveAspectRatio: 'none',
+    class: 'chart__svg',
+    role: 'img',
+    'aria-label': label,
+  });
+
+  graph.append(
+    svg('path', { d: timeline.area, class: 'chart__area' }),
+    ...timeline.bars.map((b) =>
+      svg('rect', { x: b.x, y: b.y, width: b.width, height: b.height, class: 'chart__rain' }),
+    ),
+    svg('path', { d: timeline.curve, class: 'chart__curve' }),
+    svg('circle', { cx: timeline.peak.x, cy: timeline.peak.y, r: 1.1, class: 'chart__peak' }),
+  );
+
+  // Les repères vivent en HTML plutôt qu'en SVG : le viewBox est étiré pour
+  // remplir la largeur, ce qui déformerait le texte s'il était dedans.
+  const axis = element('figcaption', 'chart__axis');
+  for (const tick of timeline.ticks) {
+    const mark = element('span', 'chart__tick', tick.label);
+    mark.style.left = `${tick.x}%`;
+    axis.append(mark);
+  }
+
+  figure.append(graph, axis);
+  return figure;
+}
+
+/**
+ * Décrit le déroulé en une phrase, pour les lecteurs d'écran et pour le cas où
+ * le graphique ne s'affiche pas.
+ */
+function chartLabel(timeline) {
+  const averses = timeline.bars.filter((b) => b.probability >= 40).map((b) => `${b.hour} h`);
+  const debut = timeline.points[0].hour;
+  const fin = timeline.points[timeline.points.length - 1].hour;
+
+  const base =
+    `Ressenti de ${debut} h à ${fin} h : de ${Math.round(timeline.range.min)}° ` +
+    `à ${Math.round(timeline.range.max)}°, maximum vers ${timeline.peak.hour} h.`;
+
+  return averses.length > 0 ? `${base} Pluie probable vers ${averses.join(', ')}.` : base;
+}
+
 /**
  * @param {HTMLElement} article la section à remplir
- * @param {{weather: object, outfit: object, phrasing: object}} day
+ * @param {{weather: object, outfit: object, phrasing: object, timeline: object|null}} day
  * @param {string} label « Aujourd'hui » ou « Demain »
  */
 export function renderDay(article, day, label) {
@@ -106,6 +175,10 @@ export function renderDay(article, day, label) {
     for (const note of day.phrasing.notes) list.append(element('li', null, note));
     contenu.push(list);
   }
+
+  // Absent en fin de soirée, quand il reste trop peu d'heures pour tracer
+  // autre chose qu'un segment trompeur.
+  if (day.timeline) contenu.push(buildChart(day.timeline, chartLabel(day.timeline)));
 
   contenu.push(buildStrip(day.weather));
   article.replaceChildren(...contenu);

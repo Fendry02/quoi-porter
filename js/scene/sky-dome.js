@@ -58,16 +58,33 @@ const FRAGMENT = /* glsl */ `
     color = mix(color, uHorizon * 1.08, uHaze * lowness * 0.85);
 
     // --- l'astre ----------------------------------------------------------
-    // Il monte et descend avec la hauteur de soleil ; sous l'horizon, c'est la
-    // lune qui prend le relais, plus petite et bien plus froide.
-    float elevation = uSunHeight * 1.35;
+    // L'élévation est volontairement compressée : à l'échelle réelle, le soleil
+    // de midi sort du cadre et on ne le voit jamais. C'est un mensonge assumé,
+    // au service du cadrage.
+    float elevation = uSunHeight * 0.72;
     vec3 sunDir = normalize(vec3(0.42, elevation, -0.86));
     float toSun = max(dot(dir, sunDir), 0.0);
 
     if (uSunIntensity > 0.001) {
-      float halo = pow(toSun, 5.0) * 0.55 + pow(toSun, 90.0) * 1.6;
-      vec3 warm = mix(vec3(1.0, 0.93, 0.78), vec3(1.0, 0.72, 0.45), 1.0 - clamp(uSunHeight, 0.0, 1.0));
-      color += warm * halo * uSunIntensity;
+      // La couronne respire : une oscillation lente, à peine perceptible
+      // consciemment, mais qui empêche le ciel de paraître figé.
+      float breath = 0.88 + 0.12 * sin(uTime * 0.55);
+
+      // Un vrai disque, net, plutôt qu'une simple tache lumineuse. Il doit
+      // rester nettement plus petit que la couronne pour se détacher d'elle.
+      float disc = smoothstep(0.99930, 0.99965, toSun);
+
+      // Scintillation d'air chaud : le pourtour du disque frémit.
+      float shimmer = 1.0 + 0.06 * sin(uTime * 3.1 + dir.y * 180.0) * smoothstep(0.995, 1.0, toSun);
+
+      // Deux lobes : un très large et très faible, qui donne l'impression
+      // d'atmosphère lumineuse, et un serré autour du disque. Un lobe large
+      // et fort brûlerait tout le quart de ciel.
+      float corona = pow(toSun, 14.0) * 0.16 + pow(toSun, 180.0) * 0.55;
+      vec3 warm = mix(vec3(1.0, 0.93, 0.78), vec3(1.0, 0.66, 0.38), 1.0 - clamp(uSunHeight, 0.0, 1.0));
+
+      color += warm * corona * breath * shimmer * uSunIntensity;
+      color += mix(warm, vec3(1.0), 0.7) * disc * uSunIntensity * 1.15;
     }
 
     if (uSunHeight < 0.05) {

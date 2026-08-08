@@ -189,6 +189,26 @@ test('pluie : le cumul déclenche même quand la probabilité est basse', () => 
   assert.ok(outfit.accessories.includes('parapluie'));
 });
 
+test('pluie chaude : le parapluie suffit, pas d’imperméable', () => {
+  // Par 28°C d'habillage, enfiler un imperméable serait une étuve. On se
+  // mouille un peu, ou on ouvre le parapluie.
+  const outfit = buildOutfit(
+    calmDay({ feelsLikeMin: 24, feelsLikeMax: 35, precipitationProbability: 80, precipitationMm: 6 }),
+  );
+
+  assert.equal(outfit.layers.outer, null);
+  assert.ok(outfit.accessories.includes('parapluie'));
+  assert.ok(alertOfKind(outfit, 'rain'), 'la pluie reste annoncée');
+});
+
+test('pluie tiède : l’imperméable réapparaît sous le seuil', () => {
+  const outfit = buildOutfit(
+    calmDay({ feelsLikeMin: 18, feelsLikeMax: 22, precipitationProbability: 80, precipitationMm: 6 }),
+  );
+
+  assert.equal(outfit.layers.outer, 'imperméable');
+});
+
 test('pluie : sous les seuils, rien ne change', () => {
   const outfit = buildOutfit(calmDay({ precipitationProbability: 30, precipitationMm: 0.4 }));
 

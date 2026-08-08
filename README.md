@@ -37,12 +37,22 @@ Des modules purs au centre, trois contrats de données entre eux : `DayWeather`,
 | `js/rules.js` | **pur** — `DayWeather` → `Outfit` |
 | `js/phrasing.js` | **pur** — `Outfit` → phrase et points d'attention |
 | `js/sky.js` | **pur** — `DayWeather` + instant → `SkyMood` |
+| `js/timeline.js` | **pur** — `DayWeather` + instant → géométrie du déroulé horaire |
 | `js/scene/` | le moteur three.js : dôme, nuages, précipitations, qualité |
 | `js/render.js` | DOM |
 | `js/main.js` | orchestration |
 
 Les modules purs ne touchent ni au réseau ni au DOM : ils sont testés en isolation, et
 réutilisables tels quels par le futur assistant valise.
+
+La phrase principale accueille **une** clause quand quelque chose change ce qu'on emporte —
+parapluie, capuche, semelles qui accrochent. Une seule : en promouvoir plusieurs diluerait
+ce qui fait la brièveté de la page. L'alerte promue quitte alors les notes, pour qu'aucune
+information ne soit dite deux fois.
+
+Sous la phrase, une courbe trace le ressenti heure par heure avec la pluie en dessous. Elle
+part de l'heure qu'il est pour aujourd'hui, de 8 h pour demain, et disparaît en fin de
+soirée quand il reste trop peu d'heures pour tracer autre chose qu'un segment trompeur.
 
 `sky.js` isole complètement la scène de la météo — `scene/` ne connaît que des paramètres
 d'ambiance normalisés, jamais un code WMO. Tout y découle d'un seul nombre continu, la

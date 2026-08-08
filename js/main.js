@@ -7,6 +7,7 @@ import { fetchForecast, geocode, WeatherError } from './weather.js';
 import { buildOutfit } from './rules.js';
 import { describeDay } from './phrasing.js';
 import { moodFor, blendMoods } from './sky.js';
+import { buildTimeline } from './timeline.js';
 import {
   renderDay,
   renderTeaser,
@@ -145,7 +146,12 @@ function showDays(forecast) {
 
   const days = forecast.slice(0, 2).map((weather) => {
     const outfit = buildOutfit(weather);
-    return { weather, outfit, phrasing: describeDay(weather, outfit) };
+    return {
+      weather,
+      outfit,
+      phrasing: describeDay(weather, outfit),
+      timeline: buildTimeline(weather, now),
+    };
   });
 
   stateEl.hidden = true;

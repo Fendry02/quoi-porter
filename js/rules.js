@@ -102,6 +102,9 @@ const WINDPROOF_OUTERS = ['coupe-vent', 'imperméable', 'manteau'];
 /** Au-dessus de ce point d'habillage, le vent ne justifie plus de couche. */
 const WIND_SHELL_MAX_TEMP = 20;
 
+/** Au-dessus de ce point d'habillage, un imperméable ferait étuve. */
+const RAIN_SHELL_MAX_TEMP = 25;
+
 /** Codes WMO de chute de neige. 71/73/75 neige, 77 grains, 85/86 averses. */
 const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
 
@@ -133,9 +136,15 @@ const MODIFIERS = [
     const heavy = weather.precipitationMm > 3 || weather.precipitationProbability >= 70;
     const snowing = SNOW_CODES.has(weather.weatherCode);
 
-    // Un imperméable seul ne tient pas chaud : par grand froid on garde le
-    // manteau et on laisse le parapluie s'occuper de l'eau.
-    const outer = outfit.layers.outer === 'manteau' ? 'manteau' : 'imperméable';
+    // Deux extrêmes où l'imperméable est le mauvais choix : par grand froid il
+    // ne tient pas chaud (on garde le manteau), et par forte chaleur il fait
+    // étuve (on se contente du parapluie). Entre les deux, il fait son office.
+    const outer =
+      outfit.dressedFor >= RAIN_SHELL_MAX_TEMP
+        ? outfit.layers.outer
+        : outfit.layers.outer === 'manteau'
+          ? 'manteau'
+          : 'imperméable';
 
     return withAlert(
       {

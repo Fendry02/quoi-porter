@@ -26,6 +26,14 @@ const DAILY_FIELDS = [
   'sunset',
 ];
 
+/** Variables horaires : de quoi tracer le déroulé de la journée. */
+const HOURLY_FIELDS = [
+  'temperature_2m',
+  'apparent_temperature',
+  'precipitation',
+  'precipitation_probability',
+];
+
 /** Erreur métier, distincte d'une panne réseau, pour que l'UI puisse les différencier. */
 export class WeatherError extends Error {
   constructor(message) {
@@ -45,11 +53,40 @@ function orDefault(value, fallback = 0) {
  * @param {object} payload la réponse JSON brute
  * @returns {object[]} un DayWeather par jour
  */
+/**
+ * Le bloc horaire arrive à plat, deux jours bout à bout. On le regroupe par
+ * date pour que chaque jour reparte avec les siennes.
+ */
+function hoursByDate(hourly) {
+  const parJour = new Map();
+  if (!hourly || !Array.isArray(hourly.time)) return parJour;
+
+  hourly.time.forEach((stamp, i) => {
+    const date = stamp.slice(0, 10);
+    const temp = orDefault(hourly.temperature_2m?.[i]);
+
+    if (!parJour.has(date)) parJour.set(date, []);
+    parJour.get(date).push({
+      hour: Number(stamp.slice(11, 13)),
+      temp,
+      // Sans ressenti, on retombe sur la température réelle plutôt que sur
+      // zéro, qui ferait plonger la courbe à la verticale.
+      feelsLike: orDefault(hourly.apparent_temperature?.[i], temp),
+      precipitationMm: orDefault(hourly.precipitation?.[i]),
+      precipitationProbability: orDefault(hourly.precipitation_probability?.[i]),
+    });
+  });
+
+  return parJour;
+}
+
 export function normalizeForecast(payload) {
   const daily = payload?.daily;
   if (!daily || !Array.isArray(daily.time)) {
     throw new WeatherError('Prévision illisible : le service n’a pas renvoyé de jours.');
   }
+
+  const heures = hoursByDate(payload.hourly);
 
   return daily.time.map((date, i) => {
     // Les rafales sont parfois absentes ; le vent moyen vaut mieux que zéro,
@@ -83,6 +120,7 @@ export function normalizeForecast(payload) {
       // décalage, on les comparerait à l'heure du navigateur — faux dès qu'on
       // regarde une ville d'un autre fuseau.
       utcOffsetSeconds: orDefault(payload.utc_offset_seconds),
+      hours: heures.get(date) ?? [],
     };
   });
 }
@@ -114,6 +152,7 @@ export async function fetchForecast(latitude, longitude) {
   url.searchParams.set('latitude', latitude);
   url.searchParams.set('longitude', longitude);
   url.searchParams.set('daily', DAILY_FIELDS.join(','));
+  url.searchParams.set('hourly', HOURLY_FIELDS.join(','));
   url.searchParams.set('forecast_days', '2');
   url.searchParams.set('timezone', 'auto');
 

@@ -31,6 +31,78 @@ const OPENERS = [
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2 };
 
 /**
+ * Alertes qui changent ce qu'on **emporte**, et méritent donc la phrase
+ * principale plutôt qu'une note. Ordre de priorité à gravité égale.
+ *
+ * `cold` et `heat` en sont volontairement absents : l'accroche dit déjà « Il
+ * gèle » ou « Ça va taper », une clause ne ferait que répéter. `swing` aussi,
+ * car il parle de couches à ajuster, pas d'objets à prendre.
+ *
+ * Le vent passe avant la pluie parce que c'est lui qui rend le parapluie
+ * inutilisable : le proposer puis le retirer trois lignes plus bas serait absurde.
+ */
+const CARRY_KINDS = ['ice', 'wind', 'rain', 'uv'];
+
+/** Variantes de clause, par type d'alerte. */
+const CLAUSES = {
+  ice: () => [
+    'Et des semelles qui accrochent, ça glisse.',
+    'Prends de quoi accrocher au sol, ce sera traître.',
+    'Attention au verglas — des semelles qui tiennent.',
+  ],
+
+  wind: (weather) => {
+    const kmh = `${Math.round(weather.windGustsKmh)}${NBSP}km/h`;
+
+    return weather.windGustsKmh >= 60
+      ? [
+          `Prends une capuche : à ${kmh}, le parapluie ne tiendra pas.`,
+          `Capuche plutôt que parapluie, ça souffle à ${kmh}.`,
+          `À ${kmh} de rafales, oublie le parapluie — capuche.`,
+        ]
+      : [
+          `Et de quoi couper le vent, ça souffle à ${kmh}.`,
+          `Prends un coupe-vent, ça souffle à ${kmh}.`,
+          `Rafales à ${kmh} — prévois de quoi couper le vent.`,
+        ];
+  },
+
+  rain: (weather, outfit) =>
+    outfit.accessories.includes('parapluie')
+      ? [
+          'Mais garde un parapluie, ça va tomber.',
+          'Et prends un parapluie.',
+          'Prends quand même un parapluie.',
+        ]
+      : [
+          'Et de quoi rester au sec.',
+          'Prévois de quoi te protéger de la pluie.',
+          'Et de quoi ne pas finir trempé.',
+        ],
+
+  uv: (weather) => [
+    `Et de la crème solaire, l’UV monte à ${Math.round(weather.uvIndex)}.`,
+    'Pense aux lunettes et à la crème.',
+    'Et de quoi te protéger du soleil.',
+  ],
+};
+
+/**
+ * L'alerte à faire remonter dans la phrase. Une seule : en promouvoir plusieurs
+ * diluerait exactement ce qui fait la force de cette page.
+ */
+function pickPromoted(outfit) {
+  const candidates = outfit.alerts.filter((a) => CARRY_KINDS.includes(a.kind));
+  if (candidates.length === 0) return null;
+
+  return candidates.slice().sort(
+    (a, b) =>
+      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+      CARRY_KINDS.indexOf(a.kind) - CARRY_KINDS.indexOf(b.kind),
+  )[0];
+}
+
+/**
  * Index de variante dérivé de la date. Déterministe, réparti correctement sur
  * de petits pools — un simple modulo sur la somme des codes donnerait des
  * séquences trop régulières d'un jour à l'autre.
@@ -94,12 +166,20 @@ export function describeDay(weather, outfit) {
   const variant = opener.variants[variantIndex(weather.date, opener.variants.length)];
 
   const ressenti = `${Math.round(pivot)}${NBSP}°C ressentis`;
-  const headline = `${variant}, ${ressenti} — ${enumerate(notableGarments(outfit))}.`;
+  const tenue = `${variant}, ${ressenti} — ${enumerate(notableGarments(outfit))}.`;
+
+  // Une alerte remonte dans la phrase quand elle change ce qu'on emporte, et
+  // quitte alors les notes : son information est déjà délivrée.
+  const promue = pickPromoted(outfit);
+  const variantes = promue ? CLAUSES[promue.kind](weather, outfit) : null;
+  const clause = variantes
+    ? variantes[variantIndex(`${weather.date}:${promue.kind}`, variantes.length)]
+    : null;
 
   const notes = outfit.alerts
-    .slice()
+    .filter((alert) => alert !== promue)
     .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
     .map((alert) => noteFor(alert, outfit));
 
-  return { headline, notes };
+  return { headline: clause ? `${tenue} ${clause}` : tenue, notes };
 }

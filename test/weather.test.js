@@ -22,6 +22,15 @@ function apiResponse(overrides = {}) {
       sunset: ['2026-08-07T21:22', '2026-08-08T21:20'],
       ...overrides,
     },
+    hourly: {
+      // Deux jours de suite, une entrée par heure.
+      time: Array.from({ length: 48 }, (_, i) =>
+        `2026-08-0${i < 24 ? 7 : 8}T${String(i % 24).padStart(2, '0')}:00`),
+      temperature_2m: Array.from({ length: 48 }, (_, i) => 10 + (i % 24) * 0.5),
+      apparent_temperature: Array.from({ length: 48 }, (_, i) => 9 + (i % 24) * 0.5),
+      precipitation: Array.from({ length: 48 }, (_, i) => (i % 24 === 19 ? 3.2 : 0)),
+      precipitation_probability: Array.from({ length: 48 }, (_, i) => (i % 24 === 19 ? 80 : 5)),
+    },
     utc_offset_seconds: 7200,
   };
 }
@@ -35,9 +44,12 @@ test('normalise un jour par entrée du tableau time', () => {
 });
 
 test('reporte chaque champ de l’API sur le bon champ du contrat', () => {
-  const [jour] = normalizeForecast(apiResponse());
+  // Les heures ont leurs propres tests ; on les met de côté pour vérifier ici
+  // que rien d'autre n'a été ni oublié ni ajouté.
+  const { hours, ...agregats } = normalizeForecast(apiResponse())[0];
 
-  assert.deepEqual(jour, {
+  assert.equal(Array.isArray(hours), true);
+  assert.deepEqual(agregats, {
     date: '2026-08-07',
     tempMin: 12.4,
     tempMax: 21.8,
@@ -120,4 +132,50 @@ test('les rafales manquantes retombent sur le vent moyen quand il est connu', ()
 
   assert.equal(jour.windMaxKmh, 46);
   assert.equal(jour.windGustsKmh, 46);
+});
+
+/* ------------------------------------------------------ données horaires */
+
+test('chaque jour reçoit ses vingt-quatre heures, et seulement les siennes', () => {
+  const jours = normalizeForecast(apiResponse());
+
+  assert.equal(jours[0].hours.length, 24);
+  assert.equal(jours[1].hours.length, 24);
+  assert.deepEqual(jours[0].hours.map((h) => h.hour), [...Array(24).keys()]);
+});
+
+test('une heure porte tout ce dont la courbe a besoin', () => {
+  const [jour] = normalizeForecast(apiResponse());
+
+  assert.deepEqual(jour.hours[19], {
+    hour: 19,
+    temp: 19.5,
+    feelsLike: 18.5,
+    precipitationMm: 3.2,
+    precipitationProbability: 80,
+  });
+});
+
+test('les valeurs horaires manquantes deviennent neutres, jamais null', () => {
+  const payload = apiResponse();
+  payload.hourly.precipitation_probability = Array(48).fill(null);
+  payload.hourly.apparent_temperature = Array(48).fill(null);
+
+  const [jour] = normalizeForecast(payload);
+
+  for (const h of jour.hours) {
+    assert.equal(h.precipitationProbability, 0);
+    // Sans ressenti, on retombe sur la température réelle plutôt que sur zéro,
+    // qui ferait plonger la courbe à la verticale.
+    assert.equal(h.feelsLike, h.temp);
+  }
+});
+
+test('sans bloc horaire, le tableau est vide plutôt qu’absent', () => {
+  const payload = apiResponse();
+  delete payload.hourly;
+
+  const [jour] = normalizeForecast(payload);
+
+  assert.deepEqual(jour.hours, []);
 });
