@@ -32,37 +32,37 @@ const PALETTES = {
   clear: {
     day: { zenith: '#4a90c4', horizon: '#cfe4ef', ink: '#12293d' },
     dusk: { zenith: '#3b4a76', horizon: '#f0a878', ink: '#1b1630' },
-    night: { zenith: '#080d1c', horizon: '#1a2340', ink: '#dde5f2' },
+    night: { zenith: '#0c1327', horizon: '#28345a', ink: '#dde5f2' },
   },
   cloudy: {
     day: { zenith: '#7d9ab0', horizon: '#dfe6ea', ink: '#1c262e' },
     dusk: { zenith: '#4a4f6b', horizon: '#d99a7e', ink: '#1d1a2c' },
-    night: { zenith: '#0c1119', horizon: '#212a37', ink: '#d9dee6' },
+    night: { zenith: '#111823', horizon: '#2c3746', ink: '#d9dee6' },
   },
   overcast: {
     day: { zenith: '#8b959d', horizon: '#c8ced3', ink: '#171d22' },
     dusk: { zenith: '#4f5158', horizon: '#9d8a86', ink: '#1a1a1e' },
-    night: { zenith: '#0e1114', horizon: '#1e2328', ink: '#d2d6da' },
+    night: { zenith: '#14181c', horizon: '#2a3138', ink: '#d2d6da' },
   },
   fog: {
     day: { zenith: '#b3b7b2', horizon: '#dcded9', ink: '#22261f' },
     dusk: { zenith: '#6e6a68', horizon: '#b5a49a', ink: '#1e1c1a' },
-    night: { zenith: '#14161a', horizon: '#272b30', ink: '#ccd0d2' },
+    night: { zenith: '#1a1d21', horizon: '#33383e', ink: '#ccd0d2' },
   },
   rain: {
     day: { zenith: '#2d3f4a', horizon: '#6b8089', ink: '#f0f4f6' },
     dusk: { zenith: '#22283c', horizon: '#6b5f6e', ink: '#eceef4' },
-    night: { zenith: '#070a10', horizon: '#161d26', ink: '#dbe2e8' },
+    night: { zenith: '#0d1119', horizon: '#212a35', ink: '#dbe2e8' },
   },
   snow: {
     day: { zenith: '#9fb0c6', horizon: '#eef1f6', ink: '#182339' },
     dusk: { zenith: '#4d5470', horizon: '#c3aebb', ink: '#191a2b' },
-    night: { zenith: '#0b1020', horizon: '#222c42', ink: '#e4e9f2' },
+    night: { zenith: '#111731', horizon: '#2e3a56', ink: '#e4e9f2' },
   },
   storm: {
     day: { zenith: '#232333', horizon: '#4e4a5c', ink: '#f3f0f7' },
     dusk: { zenith: '#191627', horizon: '#4b3a4c', ink: '#f0ecf5' },
-    night: { zenith: '#05060c', horizon: '#151321', ink: '#e6e2ee' },
+    night: { zenith: '#0a0b14', horizon: '#1e1b2d', ink: '#e6e2ee' },
   },
 };
 

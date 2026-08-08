@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 
 /** Volume dans lequel les particules tombent, autour de la caméra. */
-const FIELD = { width: 80, height: 70, depth: 75 };
+const FIELD = { width: 80, height: 70, depth: 75, near: 9 };
 
 const VERTEX = /* glsl */ `
   precision highp float;
@@ -44,8 +44,11 @@ const VERTEX = /* glsl */ `
     vec4 mv = modelViewMatrix * vec4(pos, 1.0);
     vDepth = -mv.z;
 
-    // Taille en perspective : plus c'est près, plus c'est gros.
-    gl_PointSize = aSize * uSizeScale * uPixelRatio * (320.0 / max(vDepth, 1.0));
+    // Taille en perspective : plus c'est près, plus c'est gros. Mais bornée
+    // aux deux bouts — sans plancher sur la distance, une particule frôlant la
+    // caméra devient une tache blanche de plusieurs centaines de pixels.
+    float taille = aSize * uSizeScale * uPixelRatio * (320.0 / max(vDepth, 9.0));
+    gl_PointSize = min(taille, 40.0 * uPixelRatio);
     gl_Position = projectionMatrix * mv;
   }
 `;
@@ -96,7 +99,7 @@ export function createPrecipitation() {
   for (let i = 0; i < count; i++) {
     positions[i * 3] = (Math.random() - 0.5) * FIELD.width;
     positions[i * 3 + 1] = (Math.random() - 0.5) * FIELD.height;
-    positions[i * 3 + 2] = -Math.random() * FIELD.depth;
+    positions[i * 3 + 2] = -(FIELD.near + Math.random() * (FIELD.depth - FIELD.near));
     seeds[i] = Math.random();
     sizes[i] = 0.5 + Math.random() * 0.7;
   }
@@ -158,8 +161,12 @@ export function createPrecipitation() {
       uniforms.uTilt.value = neige ? mood.turbulence * 0.12 : mood.turbulence * 0.55;
       uniforms.uOpacity.value = (neige ? 0.85 : 0.5) * (0.35 + intensity * 0.65);
 
-      // Les gouttes reprennent la couleur du ciel bas, la neige reste blanche.
-      uniforms.uColor.value.set(neige ? '#f4f7fb' : mood.ink);
+      // Une goutte capte la lumière du ciel : elle est toujours plus claire que
+      // lui, jamais plus sombre. Prendre la couleur d'encre la rendait grise —
+      // donc invisible — à mi-chemin entre un ciel clair et un ciel d'orage.
+      uniforms.uColor.value
+        .set(neige ? '#f4f7fb' : mood.horizon)
+        .lerp(new THREE.Color('#ffffff'), neige ? 0.0 : 0.55);
     },
 
     /**

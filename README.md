@@ -14,8 +14,8 @@ npm run serve      # sert le dossier sur http://localhost:8000
 
 - `/` — la page
 - `/preview.html` — **banc d'essai** : la scène pour n'importe quelle météo, n'importe quelle
-  heure, n'importe quel vent. C'est là qu'on juge et qu'on règle les ciels sans attendre
-  qu'il neige.
+  heure, n'importe quel vent, avec un curseur pour parcourir la métamorphose d'aujourd'hui
+  vers demain. C'est là qu'on juge et qu'on règle les ciels sans attendre qu'il neige.
 
 Les modules ES imposent l'origine `http://` — ouvrir `index.html` en `file://` ne marchera
 pas. Aucun `npm install` n'est nécessaire : le projet n'a aucune dépendance.

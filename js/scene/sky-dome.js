@@ -88,24 +88,43 @@ const FRAGMENT = /* glsl */ `
     }
 
     if (uSunHeight < 0.05) {
-      vec3 moonDir = normalize(vec3(-0.55, 0.42, -0.72));
+      vec3 moonDir = normalize(vec3(-0.42, 0.30, -0.86));
       float toMoon = max(dot(dir, moonDir), 0.0);
       float nightness = clamp(-uSunHeight * 2.0 + 0.1, 0.0, 1.0);
-      float disc = smoothstep(0.9975, 0.9990, toMoon);
-      float glow = pow(toMoon, 220.0) * 0.35;
-      color += vec3(0.86, 0.90, 1.0) * (disc * 0.9 + glow) * nightness;
+
+      // Un disque d'environ un degré. Le seuil paraît absurdement proche de 1
+      // parce qu'il porte sur un cosinus : cos(1°) vaut déjà 0,99985.
+      float disc = smoothstep(0.99972, 0.99984, toMoon);
+      // Un halo large et faible, plus une auréole serrée : sans eux la lune
+      // serait un autocollant posé sur le ciel.
+      float halo = pow(toMoon, 900.0) * 0.5 + pow(toMoon, 60.0) * 0.05;
+
+      color += vec3(0.88, 0.91, 1.0) * (disc * 0.55 + halo) * nightness;
     }
 
     // --- étoiles ----------------------------------------------------------
-    // Une grille de cellules, une étoile éventuelle par cellule. Seules les
-    // plus brillantes survivent au seuil, ce qui évite un ciel en confettis.
+    // Une grille de cellules, une étoile éventuelle par cellule. On tire aussi
+    // sa position DANS la cellule et on la dessine ronde : se contenter du
+    // masque de cellule donnerait des carrés et des triangles, pas des étoiles.
     if (uStarDensity > 0.001) {
-      vec3 cell = floor(dir * 190.0);
+      vec3 echelle = dir * 150.0;
+      vec3 cell = floor(echelle);
+      vec3 dansLaCellule = fract(echelle);
+
       float n = hash(cell);
-      float star = smoothstep(0.9955, 1.0, n);
-      float twinkle = 0.65 + 0.35 * sin(uTime * 2.1 + n * 63.0);
-      float above = smoothstep(0.02, 0.28, h);
-      color += vec3(0.92, 0.95, 1.0) * star * twinkle * above * uStarDensity;
+      if (n > 0.982) {
+        vec3 centre = vec3(hash(cell + 3.7), hash(cell + 11.3), hash(cell + 19.1));
+        float d = length(dansLaCellule - centre);
+
+        // La plupart des étoiles sont faibles, quelques-unes brillent : une
+        // puissance sur le tirage donne cette distribution.
+        float eclat = pow(hash(cell + 5.5), 3.0);
+        float star = smoothstep(0.42, 0.0, d) * (0.25 + eclat);
+        float twinkle = 0.7 + 0.3 * sin(uTime * 1.7 + n * 63.0);
+        float above = smoothstep(0.02, 0.3, h);
+
+        color += vec3(0.93, 0.95, 1.0) * star * twinkle * above * uStarDensity;
+      }
     }
 
     // --- éclair -----------------------------------------------------------

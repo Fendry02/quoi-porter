@@ -100,8 +100,18 @@
 
     <div class="panel">
       <label>
-        <span class="label__title">Temps</span>
+        <span class="label__title">Temps — aujourd'hui</span>
         <select id="weather"></select>
+      </label>
+
+      <label>
+        <span class="label__title">Temps — demain</span>
+        <select id="weather-b"></select>
+      </label>
+
+      <label>
+        <span class="label__title">Métamorphose — <span id="morph-value">0</span> %</span>
+        <input id="morph" type="range" min="0" max="100" step="1" value="0" />
       </label>
 
       <label>
@@ -120,7 +130,7 @@
     <p class="warning" id="warning" hidden>WebGL indisponible : la scène ne peut pas s'afficher.</p>
 
     <script type="module">
-      import { moodFor } from './js/sky.js';
+      import { moodFor, blendMoods } from './js/sky.js';
       import { createScene } from './js/scene/index.js';
 
       /** Chaque entrée est un cas que la scène doit savoir rendre. */
@@ -137,15 +147,19 @@
       ];
 
       const weatherEl = document.getElementById('weather');
+      const weatherBEl = document.getElementById('weather-b');
+      const morphEl = document.getElementById('morph');
+      const morphValue = document.getElementById('morph-value');
       const hourEl = document.getElementById('hour');
       const windEl = document.getElementById('wind');
       const hourValue = document.getElementById('hour-value');
       const windValue = document.getElementById('wind-value');
       const readout = document.getElementById('readout');
 
-      weatherEl.replaceChildren(
-        ...CAS.map((cas, i) => new Option(cas.label, String(i))),
-      );
+      for (const el of [weatherEl, weatherBEl]) {
+        el.replaceChildren(...CAS.map((cas, i) => new Option(cas.label, String(i))));
+      }
+      weatherBEl.value = '5';
 
       const scene = createScene(document.getElementById('sky'));
       if (!scene) document.getElementById('warning').hidden = false;
@@ -169,19 +183,26 @@
       }
 
       function update() {
-        const cas = CAS[Number(weatherEl.value)];
         const minutes = Number(hourEl.value);
         const gusts = Number(windEl.value);
+        const progression = Number(morphEl.value) / 100;
 
         hourValue.textContent = `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
         windValue.textContent = String(gusts);
+        morphValue.textContent = String(Math.round(progression * 100));
 
         // On fabrique l'instant en UTC ; le lieu est réglé sur un décalage nul,
         // donc l'heure affichée est bien celle qu'on lit sur le curseur.
         const at = new Date(Date.UTC(2026, 7, 8, 0, minutes));
-        const mood = moodFor(weatherFor(cas, gusts), at);
+        const moodA = moodFor(weatherFor(CAS[Number(weatherEl.value)], gusts), at);
+        const moodB = moodFor(weatherFor(CAS[Number(weatherBEl.value)], gusts), at);
 
-        scene?.setMoods(mood, mood);
+        // La scène reçoit les deux extrêmes et la progression, exactement comme
+        // le défilement les lui donne dans la vraie page.
+        scene?.setMoods(moodA, moodB);
+        scene?.setProgress(progression);
+
+        const mood = blendMoods(moodA, moodB, progression);
         document.body.style.color = mood.ink;
 
         readout.replaceChildren();
@@ -207,7 +228,7 @@
         }
       }
 
-      for (const el of [weatherEl, hourEl, windEl]) el.addEventListener('input', update);
+      for (const el of [weatherEl, weatherBEl, hourEl, windEl, morphEl]) el.addEventListener('input', update);
 
       update();
       scene?.start();

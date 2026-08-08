@@ -50,25 +50,31 @@ const FRAGMENT = /* glsl */ `
     );
   }
 
-  /** Bruit fractal : quatre octaves suffisent pour lire comme un nuage. */
+  /**
+   * Bruit fractal. Cinq octaves, mais dont l'amplitude décroît vite : une
+   * grande masse porte du détail, elle n'en est pas faite. Décroître trop
+   * lentement donnerait de la mousse plutôt que des nuages.
+   */
   float fbm(vec2 p) {
     float total = 0.0;
-    float amplitude = 0.5;
+    float amplitude = 0.55;
+    float somme = 0.0;
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
       total += noise(p) * amplitude;
-      p *= 2.03;
-      amplitude *= 0.5;
+      somme += amplitude;
+      p *= 2.17;
+      amplitude *= 0.42;
     }
 
-    return total;
+    return total / somme;
   }
 
   void main() {
-    // Le plan est bien plus large que haut : sans corriger l'aspect, les
-    // cellules de bruit seraient étirées et les nuages ressembleraient à des
-    // traînées horizontales.
-    vec2 p = vUv * vec2(uScale * 3.2, uScale);
+    // Le plan fait 3,2 fois plus large que haut. On ne corrige l'aspect qu'à
+    // moitié : de vraies masses nuageuses sont étirées par le vent, un bruit
+    // parfaitement isotrope donne des taches rondes sans direction.
+    vec2 p = vUv * vec2(uScale * 1.9, uScale);
     p.x -= uTime * uSpeed;
 
     // Le vent ne fait pas que pousser les nuages, il les déforme : on décale
@@ -77,10 +83,13 @@ const FRAGMENT = /* glsl */ `
     float density = fbm(p + warp * uTurbulence * 1.6);
 
     // uCover abaisse le seuil : plus le ciel est couvert, plus de bruit passe.
-    // Le seuil est volontairement haut, car les couches s'empilent : une
-    // couverture qui paraîtrait juste sur une seule bouche tout le ciel à cinq.
-    float edge = mix(0.86, 0.50, uCover);
-    float mask = smoothstep(edge, edge + 0.13, density);
+    // Il reste haut, car les couches s'empilent : une couverture qui paraîtrait
+    // juste sur une seule bouche tout le ciel à cinq.
+    //
+    // La rampe est large et la puissance adoucit encore : un seuil serré
+    // découperait des filaments, là où un nuage a des bords qui se dissipent.
+    float edge = mix(0.70, 0.38, uCover);
+    float mask = pow(smoothstep(edge, edge + 0.24, density), 1.5);
 
     // Fondu vers les bords du plan, pour qu'aucune arête ne se voie.
     vec2 d = abs(vUv - 0.5) * 2.0;
@@ -118,8 +127,8 @@ export function createClouds(settings, camera) {
       uCover: { value: 0.3 },
       // Les couches lointaines sont plus discrètes : c'est ce qui donne
       // l'impression d'atmosphère entre elles.
-      uOpacity: { value: 0.12 + (i / Math.max(1, count - 1)) * 0.2 },
-      uScale: { value: 13.0 + i * 8.0 },
+      uOpacity: { value: 0.18 + (i / Math.max(1, count - 1)) * 0.3 },
+      uScale: { value: 5.0 + i * 3.0 },
       uSpeed: { value: 0.012 + i * 0.016 },
       uTurbulence: { value: 0.3 },
       uTime: { value: 0 },
