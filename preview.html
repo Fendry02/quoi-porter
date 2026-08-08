@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Banc d'essai — les ciels</title>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.185.1/build/three.module.js"
+        }
+      }
+    </script>
+
+    <style>
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100svh;
+        background: #10161c;
+        font: 13px/1.5 ui-monospace, 'SF Mono', Menlo, monospace;
+        color: #eef2f5;
+      }
+
+      canvas { position: fixed; inset: 0; width: 100%; height: 100%; }
+
+      .panel {
+        position: fixed;
+        z-index: 2;
+        top: 1rem;
+        left: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 1rem;
+        width: 19rem;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 6px;
+        background: rgba(8, 12, 18, 0.62);
+        backdrop-filter: blur(12px);
+        color: #eef2f5;
+      }
+
+      label { display: flex; flex-direction: column; gap: 0.3rem; }
+
+      .label__title {
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        opacity: 0.6;
+      }
+
+      select, input[type='range'] { width: 100%; }
+
+      select {
+        padding: 0.4rem;
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.08);
+        color: inherit;
+        font: inherit;
+      }
+
+      .readout {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.15rem 0.75rem;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        font-size: 11px;
+      }
+
+      .readout dt { opacity: 0.55; }
+      .readout dd { margin: 0; font-variant-numeric: tabular-nums; }
+
+      .swatch {
+        display: inline-block;
+        width: 0.8em;
+        height: 0.8em;
+        margin-right: 0.4em;
+        border-radius: 2px;
+        vertical-align: -1px;
+        outline: 1px solid rgba(255, 255, 255, 0.25);
+      }
+
+      .warning {
+        position: fixed;
+        inset: auto 1rem 1rem;
+        z-index: 2;
+        text-align: center;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="sky"></canvas>
+
+    <div class="panel">
+      <label>
+        <span class="label__title">Temps</span>
+        <select id="weather"></select>
+      </label>
+
+      <label>
+        <span class="label__title">Heure — <span id="hour-value">14:00</span></span>
+        <input id="hour" type="range" min="0" max="1439" step="5" value="840" />
+      </label>
+
+      <label>
+        <span class="label__title">Rafales — <span id="wind-value">20</span> km/h</span>
+        <input id="wind" type="range" min="0" max="120" step="5" value="20" />
+      </label>
+
+      <dl class="readout" id="readout"></dl>
+    </div>
+
+    <p class="warning" id="warning" hidden>WebGL indisponible : la scène ne peut pas s'afficher.</p>
+
+    <script type="module">
+      import { moodFor } from './js/sky.js';
+      import { createScene } from './js/scene/index.js';
+
+      /** Chaque entrée est un cas que la scène doit savoir rendre. */
+      const CAS = [
+        { label: 'Ciel dégagé', code: 0, mm: 0, proba: 0 },
+        { label: 'Partiellement nuageux', code: 2, mm: 0, proba: 10 },
+        { label: 'Couvert', code: 3, mm: 0, proba: 20 },
+        { label: 'Brouillard', code: 45, mm: 0, proba: 10 },
+        { label: 'Pluie faible', code: 61, mm: 2, proba: 60 },
+        { label: 'Forte pluie', code: 65, mm: 18, proba: 100 },
+        { label: 'Neige', code: 73, mm: 6, proba: 90 },
+        { label: 'Forte neige', code: 75, mm: 15, proba: 100 },
+        { label: 'Orage', code: 95, mm: 22, proba: 100 },
+      ];
+
+      const weatherEl = document.getElementById('weather');
+      const hourEl = document.getElementById('hour');
+      const windEl = document.getElementById('wind');
+      const hourValue = document.getElementById('hour-value');
+      const windValue = document.getElementById('wind-value');
+      const readout = document.getElementById('readout');
+
+      weatherEl.replaceChildren(
+        ...CAS.map((cas, i) => new Option(cas.label, String(i))),
+      );
+
+      const scene = createScene(document.getElementById('sky'));
+      if (!scene) document.getElementById('warning').hidden = false;
+
+      const pad = (n) => String(n).padStart(2, '0');
+
+      function weatherFor(cas, gusts) {
+        return {
+          date: '2026-08-08',
+          tempMin: 12, tempMax: 22, feelsLikeMin: 11, feelsLikeMax: 21,
+          precipitationMm: cas.mm,
+          precipitationProbability: cas.proba,
+          windMaxKmh: gusts * 0.6,
+          windGustsKmh: gusts,
+          uvIndex: 5,
+          weatherCode: cas.code,
+          sunrise: '2026-08-08T06:30',
+          sunset: '2026-08-08T21:30',
+          utcOffsetSeconds: 0,
+        };
+      }
+
+      function update() {
+        const cas = CAS[Number(weatherEl.value)];
+        const minutes = Number(hourEl.value);
+        const gusts = Number(windEl.value);
+
+        hourValue.textContent = `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
+        windValue.textContent = String(gusts);
+
+        // On fabrique l'instant en UTC ; le lieu est réglé sur un décalage nul,
+        // donc l'heure affichée est bien celle qu'on lit sur le curseur.
+        const at = new Date(Date.UTC(2026, 7, 8, 0, minutes));
+        const mood = moodFor(weatherFor(cas, gusts), at);
+
+        scene?.setMoods(mood, mood);
+        document.body.style.color = mood.ink;
+
+        readout.replaceChildren();
+        const lignes = [
+          ['zénith', `<span class="swatch" style="background:${mood.zenith}"></span>${mood.zenith}`],
+          ['horizon', `<span class="swatch" style="background:${mood.horizon}"></span>${mood.horizon}`],
+          ['encre', `<span class="swatch" style="background:${mood.ink}"></span>${mood.ink}`],
+          ['soleil', mood.sunHeight.toFixed(2)],
+          ['lumière', mood.sunIntensity.toFixed(2)],
+          ['étoiles', mood.starDensity.toFixed(2)],
+          ['nuages', mood.cloudCover.toFixed(2)],
+          ['brume', mood.haze.toFixed(2)],
+          ['précip.', `${mood.precipitation.type ?? '—'} ${mood.precipitation.intensity.toFixed(2)}`],
+          ['éclairs', mood.lightning ? 'oui' : 'non'],
+        ];
+
+        for (const [cle, valeur] of lignes) {
+          const dt = document.createElement('dt');
+          dt.textContent = cle;
+          const dd = document.createElement('dd');
+          dd.innerHTML = valeur;
+          readout.append(dt, dd);
+        }
+      }
+
+      for (const el of [weatherEl, hourEl, windEl]) el.addEventListener('input', update);
+
+      update();
+      scene?.start();
+    </script>
+  </body>
+</html>

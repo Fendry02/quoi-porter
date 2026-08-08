@@ -18,8 +18,11 @@ function apiResponse(overrides = {}) {
       windgusts_10m_max: [19.8, 52.1],
       uv_index_max: [6.2, 3.1],
       weathercode: [1, 63],
+      sunrise: ['2026-08-07T06:34', '2026-08-08T06:36'],
+      sunset: ['2026-08-07T21:22', '2026-08-08T21:20'],
       ...overrides,
     },
+    utc_offset_seconds: 7200,
   };
 }
 
@@ -46,7 +49,38 @@ test('reporte chaque champ de l’API sur le bon champ du contrat', () => {
     windGustsKmh: 19.8,
     uvIndex: 6.2,
     weatherCode: 1,
+    sunrise: '2026-08-07T06:34',
+    sunset: '2026-08-07T21:22',
+    utcOffsetSeconds: 7200,
   });
+});
+
+test('le décalage horaire du lieu est reporté sur chaque jour', () => {
+  // Les heures de lever et coucher sont locales AU LIEU. Sans son décalage,
+  // on les comparerait à l'heure du navigateur, ce qui fausse tout dès qu'on
+  // regarde une ville d'un autre fuseau.
+  const jours = normalizeForecast({
+    ...apiResponse(),
+    utc_offset_seconds: -25200,
+  });
+
+  for (const jour of jours) assert.equal(jour.utcOffsetSeconds, -25200);
+});
+
+test('décalage horaire absent : on suppose UTC', () => {
+  const payload = apiResponse();
+  delete payload.utc_offset_seconds;
+
+  assert.equal(normalizeForecast(payload)[0].utcOffsetSeconds, 0);
+});
+
+test('lever et coucher du soleil manquants : repli sur des heures conventionnelles', () => {
+  // sky.js a besoin d'une plage de jour ; sans elle il ne saurait pas
+  // distinguer midi de minuit. Un repli vaut mieux qu'un null à tester partout.
+  const [jour] = normalizeForecast(apiResponse({ sunrise: [null, null], sunset: [null, null] }));
+
+  assert.equal(jour.sunrise, '2026-08-07T06:00');
+  assert.equal(jour.sunset, '2026-08-07T20:00');
 });
 
 test('une valeur nulle devient une valeur neutre, jamais null', () => {

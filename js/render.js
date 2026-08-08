@@ -2,19 +2,9 @@
  * Rendu DOM. Seul module autorisé à toucher au document.
  *
  * Il ne prend aucune décision : rules.js décide de la tenue, phrasing.js la met
- * en mots, render.js se contente de les poser à l'écran.
+ * en mots, sky.js décide de l'ambiance, render.js se contente de poser tout ça
+ * à l'écran.
  */
-
-/** Code WMO → ambiance visuelle du panneau (voir styles.css). */
-const SKIES = [
-  { codes: [0, 1], sky: 'clear' },
-  { codes: [2], sky: 'cloudy' },
-  { codes: [3], sky: 'overcast' },
-  { codes: [45, 48], sky: 'fog' },
-  { codes: [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82], sky: 'rain' },
-  { codes: [71, 73, 75, 77, 85, 86], sky: 'snow' },
-  { codes: [95, 96, 99], sky: 'storm' },
-];
 
 /** Code WMO → libellé lisible. */
 const CONDITIONS = new Map([
@@ -48,10 +38,6 @@ const CONDITIONS = new Map([
   [99, 'orage et grêle'],
 ]);
 
-function skyFor(weatherCode) {
-  return SKIES.find((entry) => entry.codes.includes(weatherCode))?.sky ?? 'cloudy';
-}
-
 function element(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -59,16 +45,17 @@ function element(tag, className, text) {
   return node;
 }
 
+const round = (n) => Math.round(n);
+
+/** Une décimale, virgule française. */
+const decimal = (n) =>
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 function measure(label, value) {
   const wrapper = element('div', 'day__measure');
   wrapper.append(element('dt', null, label), element('dd', null, value));
   return wrapper;
 }
-
-const round = (n) => Math.round(n);
-
-/** Une décimale, virgule française. */
-const decimal = (n) => n.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 function buildStrip(weather) {
   const strip = element('dl', 'day__strip');
@@ -106,77 +93,69 @@ function buildPhrase(headline) {
   return node;
 }
 
-function buildDay(day, label, variant) {
-  const article = element('article', `day day--${variant}`);
-  article.dataset.sky = skyFor(day.weather.weatherCode);
-
-  article.append(element('p', 'day__label', label), buildPhrase(day.phrasing.headline));
+/**
+ * @param {HTMLElement} article la section à remplir
+ * @param {{weather: object, outfit: object, phrasing: object}} day
+ * @param {string} label « Aujourd'hui » ou « Demain »
+ */
+export function renderDay(article, day, label) {
+  const contenu = [element('p', 'day__label', label), buildPhrase(day.phrasing.headline)];
 
   if (day.phrasing.notes.length > 0) {
     const list = element('ul', 'day__notes');
     for (const note of day.phrasing.notes) list.append(element('li', null, note));
-    article.append(list);
+    contenu.push(list);
   }
 
-  article.append(buildStrip(day.weather));
-  return article;
+  contenu.push(buildStrip(day.weather));
+  article.replaceChildren(...contenu);
+  article.hidden = false;
+}
+
+/**
+ * L'essentiel de demain, lisible sans rien faire : c'est ce qui l'empêche
+ * d'être relégué derrière une interaction.
+ */
+export function renderTeaser(button, day) {
+  const { layers, dressedFor } = day.outfit;
+  const piece = layers.outer ?? layers.top[layers.top.length - 1];
+
+  button.replaceChildren(
+    element('span', 'teaser__arrow', '↓'),
+    element('span', null, `Demain · ${round(dressedFor)}° · ${piece}`),
+  );
+  button.hidden = false;
 }
 
 /**
  * @param {HTMLElement} container
- * @param {{weather: object, outfit: object, phrasing: object}[]} days aujourd'hui puis demain
+ * @param {{message?: string, detail?: string, action?: {label: string, onClick: () => void}}} options
  */
-export function renderDays(container, days) {
-  const labels = ['Aujourd’hui', 'Demain'];
-  const variants = ['today', 'tomorrow'];
+export function renderState(container, { message, detail, action, skeleton }) {
+  const contenu = [];
 
-  // Le masthead flotte au-dessus du ciel d'aujourd'hui : il lui faut la même
-  // encre, sinon il devient illisible sur les ciels sombres.
-  document.body.dataset.sky = skyFor(days[0].weather.weatherCode);
+  if (message) contenu.push(element('p', 'state__message', message));
+  if (detail) contenu.push(element('p', 'state__detail', detail));
 
-  container.replaceChildren(
-    ...days.slice(0, 2).map((day, i) => buildDay(day, labels[i], variants[i])),
-  );
-}
-
-export function renderLoading(container, place) {
-  delete document.body.dataset.sky;
-
-  const state = element('div', 'state');
-  const skeleton = element('div', 'skeleton');
-  skeleton.append(
-    element('div', 'skeleton__bar'),
-    element('div', 'skeleton__bar'),
-    element('div', 'skeleton__bar'),
-  );
-
-  state.append(
-    element('p', 'state__detail', place ? `Prévision pour ${place}…` : 'Recherche de la météo…'),
-    skeleton,
-  );
-  container.replaceChildren(state);
-}
-
-/**
- * @param {HTMLElement} container
- * @param {{message: string, detail?: string, action?: {label: string, onClick: () => void}}} options
- */
-export function renderState(container, { message, detail, action }) {
-  delete document.body.dataset.sky;
-
-  const state = element('div', 'state');
-  state.append(element('p', 'state__message', message));
-
-  if (detail) state.append(element('p', 'state__detail', detail));
+  if (skeleton) {
+    const bloc = element('div', 'skeleton');
+    bloc.append(
+      element('div', 'skeleton__bar'),
+      element('div', 'skeleton__bar'),
+      element('div', 'skeleton__bar'),
+    );
+    contenu.push(bloc);
+  }
 
   if (action) {
     const button = element('button', 'state__action', action.label);
     button.type = 'button';
     button.addEventListener('click', action.onClick);
-    state.append(button);
+    contenu.push(button);
   }
 
-  container.replaceChildren(state);
+  container.replaceChildren(...contenu);
+  container.hidden = false;
 }
 
 /**
@@ -194,5 +173,23 @@ export function renderPlaceResults(list, places, onPick) {
       item.append(button);
       return item;
     }),
+  );
+}
+
+/**
+ * Accorde le texte au ciel : l'encre vient du mood, et le halo prend le parti
+ * inverse pour que la phrase reste lisible quoi qu'il passe derrière.
+ */
+export function applyInk(ink) {
+  if (!ink) return;
+
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(ink.slice(i, i + 2), 16));
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+  document.documentElement.style.setProperty('--ink', ink);
+  document.documentElement.style.setProperty(
+    '--halo',
+    // Encre claire → ciel sombre → halo sombre. Et réciproquement.
+    luminance > 0.5 ? 'rgba(6, 10, 16, 0.42)' : 'rgba(255, 255, 255, 0.34)',
   );
 }

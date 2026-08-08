@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Qu'est-ce que je mets ?</title>
     <meta name="description" content="Ce qu'il faut porter aujourd'hui et demain, selon la météo." />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="dark light" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,11 +14,37 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.185.1/build/three.module.js"
+        }
+      }
+    </script>
   </head>
 
   <body>
+    <!-- La scène. Purement décorative : tout ce qu'elle dit est aussi écrit. -->
+    <canvas id="sky" aria-hidden="true"></canvas>
+
+    <!--
+      Piste de défilement : deux écrans de haut, invisible. C'est elle qui donne
+      au navigateur de quoi faire défiler, pendant que le contenu reste fixe.
+    -->
+    <div id="track" aria-hidden="true">
+      <div class="track__stop"></div>
+      <div class="track__stop"></div>
+    </div>
+
     <header class="masthead">
-      <button type="button" id="place-toggle" class="place" aria-expanded="false" aria-controls="place-panel">
+      <button
+        type="button"
+        id="place-toggle"
+        class="place"
+        aria-expanded="false"
+        aria-controls="place-panel"
+      >
         <span class="place__pin" aria-hidden="true"></span>
         <span id="place-name">Localisation…</span>
       </button>
@@ -42,7 +68,13 @@
       </div>
     </header>
 
-    <main id="days" aria-live="polite"></main>
+    <main id="stage">
+      <article class="day day--today" id="day-today" aria-label="Aujourd’hui"></article>
+      <article class="day day--tomorrow" id="day-tomorrow" aria-label="Demain"></article>
+      <div id="state" class="state" hidden></div>
+    </main>
+
+    <button type="button" id="teaser" class="teaser" hidden></button>
 
     <script type="module" src="js/main.js"></script>
   </body>

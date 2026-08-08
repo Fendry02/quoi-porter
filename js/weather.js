@@ -22,6 +22,8 @@ const DAILY_FIELDS = [
   'windgusts_10m_max',
   'uv_index_max',
   'weathercode',
+  'sunrise',
+  'sunset',
 ];
 
 /** Erreur métier, distincte d'une panne réseau, pour que l'UI puisse les différencier. */
@@ -73,6 +75,14 @@ export function normalizeForecast(payload) {
       windGustsKmh,
       uvIndex: orDefault(daily.uv_index_max?.[i]),
       weatherCode: orDefault(daily.weathercode?.[i]),
+      // sky.js a besoin d'une plage de jour pour situer l'heure courante ;
+      // sans elle il ne saurait pas distinguer midi de minuit.
+      sunrise: orDefault(daily.sunrise?.[i], `${date}T06:00`),
+      sunset: orDefault(daily.sunset?.[i], `${date}T20:00`),
+      // Lever et coucher sont donnés en heure locale AU LIEU. Sans son
+      // décalage, on les comparerait à l'heure du navigateur — faux dès qu'on
+      // regarde une ville d'un autre fuseau.
+      utcOffsetSeconds: orDefault(payload.utc_offset_seconds),
     };
   });
 }
