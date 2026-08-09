@@ -21,11 +21,8 @@
  * l'autre. La tenue, elle, ne varie jamais — c'est un fait, pas une tournure.
  */
 
-import { relevantHours, spanOf, peakOf, phraseSpan } from './hours.js';
+import { relevantHours, spanOf, peakOf, phraseSpan, NBSP } from './hours.js';
 import { outfitIsRobust } from './rules.js';
-
-/** Espace insécable, pour ne pas séparer le nombre de son unité en fin de ligne. */
-const NBSP = ' ';
 
 /**
  * Accroches par palier de ressenti, du plus chaud au plus froid.
@@ -172,6 +169,30 @@ function confidenceWarning(weather) {
   });
 
   return `Les modèles divergent de ${ecart}${NBSP}°C — la tenue pourrait être différente.`;
+}
+
+/**
+ * Le titre de l'onglet, une fois la prévision connue.
+ *
+ * Un onglet est large de quelques mots : on y met la réponse, pas la question.
+ * « Qu'est-ce que je mets ? » reste le titre de départ — il dit ce qu'on
+ * trouvera ici tant qu'on ne sait rien — mais dès que la page sait, elle le
+ * dit, et une fenêtre pleine d'onglets se relit d'un coup d'œil.
+ *
+ * La pièce retenue est celle qui se voit : le manteau s'il y en a un, sinon la
+ * dernière couche du haut. Le lieu perd sa région et son pays, qui n'apportent
+ * rien dans si peu de place.
+ *
+ * @param {object} outfit l'Outfit produit par buildOutfit
+ * @param {string} [placeName] le lieu, tel qu'affiché en haut de page
+ */
+export function pageTitle(outfit, placeName) {
+  const { top, outer } = outfit.layers;
+  const piece = outer ?? top[top.length - 1];
+  const tenue = `${capitalize(piece)} · ${Math.round(outfit.dressedFor)}°`;
+  const ville = placeName?.split(',')[0].trim();
+
+  return ville ? `${tenue} · ${ville}` : tenue;
 }
 
 /**

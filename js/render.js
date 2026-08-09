@@ -157,11 +157,16 @@ function buildChart(timeline, label, events) {
   const plot = element('div', 'chart__plot');
   plot.append(graph, buildPeakLabel(timeline.peak));
 
+  // Un trait par heure, un nombre quand il y a la place. Le trait porte la
+  // précision, le nombre la lecture : c'est lui qui permet de situer une barre
+  // de la frise sans interpoler entre deux repères lointains.
   const axis = element('figcaption', 'chart__axis');
   for (const tick of timeline.ticks) {
-    const mark = element('span', 'chart__tick', tick.label);
-    mark.style.left = `${tick.x}%`;
-    axis.append(mark);
+    const repere = element('span', 'chart__tick');
+    repere.style.left = `${tick.x}%`;
+    repere.append(element('span', 'chart__mark'));
+    if (tick.label) repere.append(element('span', 'chart__hour', tick.label));
+    axis.append(repere);
   }
 
   figure.append(plot, axis);

@@ -626,7 +626,8 @@ body {
 
 .chart__axis {
   position: relative;
-  height: 1.2em;
+  /* De quoi loger le trait, son écart, puis le nombre. */
+  height: 2em;
   margin-top: 0.6rem;
   font-family: var(--mono);
   font-size: 0.625rem;
@@ -634,11 +635,32 @@ body {
   opacity: 0.5;
 }
 
+/*
+ * Un repère par heure. Le trait porte la précision — c'est lui qui permet de
+ * lire où commence une barre de la frise — et le nombre porte la lecture.
+ *
+ * Le trait ne se pâlit pas davantage : il partage la densité de l'axe, et un
+ * filet d'un pixel est déjà bien plus discret qu'un chiffre. Une opacité
+ * propre s'y multipliait avec celle de l'axe et le faisait disparaître.
+ */
 .chart__tick {
   position: absolute;
   top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   transform: translateX(-50%);
   white-space: nowrap;
+}
+
+.chart__mark {
+  width: 1px;
+  height: 0.3rem;
+  background: currentColor;
+}
+
+.chart__hour {
+  margin-top: 0.15rem;
 }
 
 /* ------------------------------------------- la frise des événements */

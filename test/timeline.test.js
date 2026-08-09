@@ -154,14 +154,59 @@ test('une journée sans pluie ne produit aucune barre', () => {
 
 /* -------------------------------------------------------- les repères */
 
-test('les repères horaires sont espacés et lisibles', () => {
+const NBSP = '\u00A0';
+
+test('chaque heure a sa graduation', () => {
+  // Une graduation toutes les quatre heures obligeait à interpoler à l'œil
+  // pour situer 18 h — et les barres de la frise s'alignent sur les heures.
   const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
 
-  assert.ok(t.ticks.length >= 3 && t.ticks.length <= 5, `${t.ticks.length} repères`);
+  assert.equal(t.ticks.length, t.points.length);
+  assert.deepEqual(t.ticks.map((g) => g.hour), t.points.map((p) => p.hour));
   for (const tick of t.ticks) {
-    assert.match(tick.label, /^\d{1,2} h$/);
     assert.ok(tick.x >= 0 && tick.x <= VIEW.width);
   }
+});
+
+test('l’unité ne s’écrit qu’une fois, sur la première graduation', () => {
+  // « 8 h, 9 h, 10 h… » seize fois de suite noierait l'axe sous les unités ;
+  // « 8 h, 9, 10 » se lit sans ambiguïté une fois la première posée.
+  const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
+
+  assert.equal(t.ticks[0].label, `8${NBSP}h`);
+  assert.equal(t.ticks[1].label, '9');
+  assert.equal(t.ticks.filter((g) => g.label?.includes('h')).length, 1);
+});
+
+test('les heures s’étiquettent toutes quand elles tiennent', () => {
+  const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
+
+  assert.equal(t.ticks.length, 16, 'de 8 h à 23 h');
+  assert.equal(t.ticks.every((g) => g.label !== null), true);
+});
+
+test('quand les heures se pressent, une étiquette sur deux', () => {
+  // Une journée entière ne laisse pas assez de place à vingt-quatre nombres :
+  // on en tait un sur deux plutôt que de les laisser se chevaucher. Les
+  // graduations, elles, restent horaires — c'est le repère qui compte.
+  const t = buildTimeline(day(), at('08', '00:00'));
+
+  assert.equal(t.ticks.length, 24, 'la graduation reste horaire');
+  assert.deepEqual(
+    t.ticks.filter((g) => g.label !== null).map((g) => g.hour),
+    [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22],
+  );
+});
+
+test('l’unité tombe sur la première graduation ÉTIQUETÉE', () => {
+  // À 1 h du matin, la fenêtre est assez longue pour passer au pas de deux et
+  // commence sur une heure impaire : la première graduation n'est donc pas
+  // étiquetée, et l'unité doit suivre l'étiquette, pas la position.
+  const t = buildTimeline(day(), at('08', '01:00'));
+  const etiquetees = t.ticks.filter((g) => g.label !== null);
+
+  assert.equal(etiquetees[0].label, `2${NBSP}h`);
+  assert.equal(t.ticks[0].label, null, 'la graduation de 1 h reste muette');
 });
 
 test('le pic de ressenti est signalé avec sa valeur', () => {

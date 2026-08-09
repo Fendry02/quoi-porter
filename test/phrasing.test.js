@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildOutfit } from '../js/rules.js';
-import { describeDay } from '../js/phrasing.js';
+import { describeDay, pageTitle } from '../js/phrasing.js';
 
 /** Heures plates par défaut ; chaque test creuse celles qui l'intéressent. */
 function flatHours(feelsLike) {
@@ -407,4 +407,46 @@ test('le désaccord s’écrit avec une virgule décimale', () => {
   const { confidence } = describe({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: 3.5 });
 
   assert.match(confidence, /3,5\s*°C/);
+});
+
+
+/* ------------------------------------------------------ le titre d'onglet */
+
+const titre = (overrides, lieu) => pageTitle(buildOutfit(calmDay(overrides)), lieu);
+
+test('le titre porte la réponse, pas la question', () => {
+  // Un onglet fait quelques mots de large : « Qu'est-ce que je mets ? » y
+  // occupe toute la place pour ne rien apprendre à qui a déjà ouvert la page.
+  const t = titre({ feelsLikeMin: 2 }, 'Bergen, Vestland, Norvège');
+
+  assert.match(t, /^[A-ZÉÈ]/, 'le titre commence par une majuscule');
+  assert.match(t, /·/, 'les trois informations sont séparées');
+  assert.match(t, /Bergen/);
+});
+
+test('le lieu perd sa région et son pays', () => {
+  // « Bergen, Vestland, Norvège » mangerait le titre entier pour rien.
+  assert.equal(titre({}, 'Paris, Île-de-France, France').endsWith('· Paris'), true);
+});
+
+test('sans lieu connu, le titre tient quand même', () => {
+  const t = titre({ feelsLikeMin: 12 });
+
+  assert.equal(t.includes('undefined'), false);
+  assert.equal(t.includes('·'), true, 'la tenue et la température restent');
+});
+
+test('le titre montre la couche qui se voit', () => {
+  // C'est le manteau qu'on remarque, pas le t-shirt qu'il recouvre.
+  const froid = buildOutfit(calmDay({ feelsLikeMin: -2 }));
+
+  assert.equal(pageTitle(froid, 'Oslo').startsWith(capitaliser(froid.layers.outer)), true);
+});
+
+const capitaliser = (mot) => mot.charAt(0).toUpperCase() + mot.slice(1);
+
+test('la température affichée est celle pour laquelle on habille', () => {
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 12 }));
+
+  assert.match(pageTitle(outfit, 'Lyon'), new RegExp(`${Math.round(outfit.dressedFor)}°`));
 });

@@ -78,6 +78,13 @@ Sous la phrase, une courbe trace le ressenti heure par heure avec la pluie en de
 part de l'heure qu'il est pour aujourd'hui, de 8 h pour demain, et disparaît en fin de
 soirée quand il reste trop peu d'heures pour tracer autre chose qu'un segment trompeur.
 
+**L'axe est gradué heure par heure.** Une graduation toutes les quatre heures obligeait à
+interpoler à l'œil pour situer 18 h, alors que c'est l'heure exacte qu'on cherche — et que
+les barres de la frise s'alignent, elles, sur chaque heure. L'unité ne s'écrit qu'une fois,
+sur la première étiquette : « 8 h, 9, 10 » se lit sans ambiguïté et laisse respirer le reste.
+Passé dix-huit heures affichées, un nombre sur deux se tait pour ne pas se chevaucher sur un
+téléphone ; les graduations, elles, restent horaires.
+
 `hours.js` définit cette fenêtre une seule fois, pour le texte comme pour le tracé : sans
 ça, la courbe pourrait montrer une averse que les notes passeraient sous silence.
 
@@ -105,6 +112,13 @@ Deux partis pris dans le moteur de règles :
 
 Le design complet est dans
 [docs/superpowers/specs/2026-08-07-tenue-du-jour-design.md](docs/superpowers/specs/2026-08-07-tenue-du-jour-design.md).
+
+L'onglet porte la **réponse** plutôt que la question — « T-shirt · 25° · Paris ». Dans une
+fenêtre pleine d'onglets, « Qu'est-ce que je mets ? » n'apprend rien à qui a déjà ouvert la
+page ; ce titre-là reste pour l'attente, avant qu'on sache quoi que ce soit.
+
+La favicon est un SVG unique, net à toutes les tailles, qui suit le thème clair ou sombre du
+système : une icône noire ferait un trou dans une barre d'onglets sombre.
 
 ## Données
 

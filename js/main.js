@@ -5,7 +5,7 @@
 
 import { fetchForecast, geocode, WeatherError } from './weather.js';
 import { buildOutfit } from './rules.js';
-import { describeDay } from './phrasing.js';
+import { describeDay, pageTitle } from './phrasing.js';
 import { moodFor, blendMoods } from './sky.js';
 import { buildTimeline } from './timeline.js';
 import {
@@ -188,6 +188,11 @@ function showDays(forecast, { silent = false } = {}) {
   renderDay(todayEl, days[0], 'Aujourd’hui');
   renderDay(tomorrowEl, days[1], 'Demain');
   renderTeaser(teaser, days[1]);
+
+  // L'onglet porte désormais la réponse plutôt que la question : dans une
+  // fenêtre pleine d'onglets, « Qu'est-ce que je mets ? » n'apprend rien à qui
+  // a déjà ouvert la page. Le titre de départ reste, lui, pour l'attente.
+  document.title = pageTitle(days[0].outfit, currentPlace?.name);
 
   // Demain est montré à la même heure qu'il est maintenant : on compare deux
   // matins, ou deux nuits, jamais un matin et une nuit.

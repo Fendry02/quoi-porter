@@ -9,7 +9,7 @@
  * quand tombe l'averse.
  */
 
-import { relevantHours } from './hours.js';
+import { relevantHours, NBSP } from './hours.js';
 
 /** Repère normalisé du tracé. Le SVG s'y adapte par son viewBox. */
 export const VIEW = { width: 100, height: 34 };
@@ -22,6 +22,14 @@ const TOP_PAD = 3;
 
 /** En dessous, une courbe ne décrit plus rien. */
 const MIN_POINTS = 3;
+
+/**
+ * Au-delà de ce nombre d'heures affichées, on n'étiquette plus qu'une
+ * graduation sur deux : les nombres se chevaucheraient sur un écran étroit.
+ * Seize heures — la fenêtre d'une journée entière vue le matin — tiennent ;
+ * les vingt-quatre d'une page ouverte à minuit, non.
+ */
+const LABEL_CROWD = 18;
 
 const round = (n) => Math.round(n * 100) / 100;
 
@@ -96,11 +104,24 @@ export function buildTimeline(weather, at) {
       };
     });
 
-  // Un repère toutes les quatre heures, en s'accrochant aux multiples de 4
-  // pour tomber sur des heures rondes plutôt que sur « 15 h, 19 h, 23 h ».
-  const ticks = points
-    .filter((p) => p.hour % 4 === 0)
-    .map((p) => ({ x: p.x, label: `${p.hour} h` }));
+  // Une graduation par heure. Une tous les quatre obligeait à interpoler à
+  // l'œil pour situer 18 h, alors que c'est l'heure exacte qu'on cherche — et
+  // que les barres de la frise s'alignent, elles, sur chaque heure.
+  //
+  // Les étiquettes, en revanche, se raréfient quand les heures se pressent :
+  // vingt-quatre nombres ne tiennent pas côte à côte sur un téléphone. Les
+  // graduations restent horaires, seuls les nombres s'espacent.
+  const pas = points.length > LABEL_CROWD ? 2 : 1;
+  // L'unité une seule fois : « 8 h, 9 h, 10 h… » seize fois noierait l'axe,
+  // « 8 h, 9, 10 » se lit sans ambiguïté une fois la première posée. Elle suit
+  // l'étiquette et non la position — la première graduation peut être muette.
+  const premiere = points.find((p) => p.hour % pas === 0);
+
+  const ticks = points.map((p) => ({
+    x: p.x,
+    hour: p.hour,
+    label: p.hour % pas !== 0 ? null : p === premiere ? `${p.hour}${NBSP}h` : `${p.hour}`,
+  }));
 
   const sommet = points.reduce((a, b) => (a.feelsLike > b.feelsLike ? a : b));
 

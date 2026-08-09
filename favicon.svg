@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!--
+    Un t-shirt, parce que la page répond à « qu'est-ce que je mets ? ».
+
+    Une forme pleine et non un trait : à seize pixels, un contour d'un pixel
+    disparaît. Les encoches du col et des emmanchures suffisent à faire lire le
+    vêtement à cette taille, où tout détail supplémentaire deviendrait une tache.
+
+    Il suit le thème du système : les onglets sont sombres chez la plupart des
+    gens, et une icône noire y ferait un trou.
+  -->
+  <style>
+    path { fill: #16181d; }
+    @media (prefers-color-scheme: dark) {
+      path { fill: #f2f0ec; }
+    }
+  </style>
+  <path d="M11.6 4 4 8.2l2.6 5.6 2.6-1.3V28h13.6V12.5l2.6 1.3L28 8.2 20.4 4c-.5 2.2-2.3 3.6-4.4 3.6S12.1 6.2 11.6 4Z"/>
+</svg>

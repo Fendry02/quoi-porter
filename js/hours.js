@@ -73,6 +73,15 @@ export function peakOf(hours, valueOf) {
   return { hour: sommet.hour, value: valueOf(sommet) };
 }
 
+/**
+ * Espace insécable : un nombre ne se sépare pas de son unité.
+ *
+ * Exporté plutôt que recopié — la mise en mots des heures vit ici. Une copie
+ * de ce caractère invisible avait déjà dérivé en espace ordinaire sans que
+ * rien ne le montre à la lecture.
+ */
+export const NBSP = '\u00A0';
+
 const heure = (h) => `${h} h`;
 
 /**
@@ -115,7 +124,7 @@ export function phraseHour(h) {
  * @param {{from: number, to: number}} span
  */
 export function shortSpan(span) {
-  if (span.from === span.to) return `${span.from} h`;
+  if (span.from === span.to) return `${span.from}${NBSP}h`;
 
-  return `${span.from}–${span.to} h`;
+  return `${span.from}–${span.to}${NBSP}h`;
 }
