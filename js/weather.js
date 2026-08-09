@@ -4,9 +4,16 @@
  * L'API est gratuite, sans clé et sans inscription — il n'y a donc aucun secret
  * à protéger, et pas de backend à justifier.
  *
+ * On interroge cinq centres de prévision d'un coup et on en prend la médiane :
+ * plus robuste qu'un modèle isolé, et surtout leur désaccord nous dit quand la
+ * prévision ne mérite pas confiance. Huit kilo-octets pour les cinq, deux jours
+ * et cinq variables horaires — le coût est négligeable.
+ *
  * La normalisation est séparée des appels réseau : `normalizeForecast` est pure
  * et testable, `fetchForecast` n'est qu'une enveloppe autour de fetch.
  */
+
+import { median, spread, acrossModels } from './ensemble.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -24,6 +31,22 @@ const DAILY_FIELDS = [
   'weathercode',
   'sunrise',
   'sunset',
+];
+
+/**
+ * Les centres de prévision interrogés. Cinq institutions distinctes, pas cinq
+ * variantes d'un même modèle — c'est ce qui donne du sens à leur désaccord.
+ *
+ * Aucun ne publie toutes les variables : ECMWF n'a pas les rafales, Météo-France
+ * et UKMO n'ont pas la probabilité de pluie. On agrège donc variable par
+ * variable, sur les modèles qui répondent pour celle-là.
+ */
+export const MODELS = [
+  'ecmwf_ifs025',
+  'gfs_seamless',
+  'meteofrance_seamless',
+  'icon_seamless',
+  'ukmo_seamless',
 ];
 
 /** Variables horaires : de quoi tracer le déroulé de la journée. */
@@ -49,6 +72,22 @@ function orDefault(value, fallback = 0) {
 }
 
 /**
+ * Quels modèles ont réellement répondu dans cette réponse.
+ *
+ * Le repli mono-modèle renvoie des champs sans suffixe : on rend alors une
+ * liste vide, et tout le reste continue de fonctionner sans savoir qu'il ne
+ * lit qu'une source.
+ */
+function modelsPresent(payload) {
+  // On balaie les deux blocs, et on cherche n'importe quel champ portant le
+  // suffixe plutôt qu'un champ précis : se fier à une seule variable casserait
+  // dès qu'un modèle cesse de la publier.
+  const champs = [...Object.keys(payload.daily ?? {}), ...Object.keys(payload.hourly ?? {})];
+
+  return MODELS.filter((m) => champs.some((champ) => champ.endsWith(`_${m}`)));
+}
+
+/**
  * Réponse Open-Meteo → tableau de DayWeather.
  *
  * @param {object} payload la réponse JSON brute
@@ -58,13 +97,16 @@ function orDefault(value, fallback = 0) {
  * Le bloc horaire arrive à plat, deux jours bout à bout. On le regroupe par
  * date pour que chaque jour reparte avec les siennes.
  */
-function hoursByDate(hourly) {
+function hoursByDate(hourly, models) {
   const parJour = new Map();
   if (!hourly || !Array.isArray(hourly.time)) return parJour;
 
+  const consensus = (variable, i) => median(acrossModels(hourly, variable, models, i));
+
   hourly.time.forEach((stamp, i) => {
     const date = stamp.slice(0, 10);
-    const temp = orDefault(hourly.temperature_2m?.[i]);
+    const temp = orDefault(consensus('temperature_2m', i));
+    const enveloppe = spread(acrossModels(hourly, 'apparent_temperature', models, i));
 
     if (!parJour.has(date)) parJour.set(date, []);
     parJour.get(date).push({
@@ -72,14 +114,32 @@ function hoursByDate(hourly) {
       temp,
       // Sans ressenti, on retombe sur la température réelle plutôt que sur
       // zéro, qui ferait plonger la courbe à la verticale.
-      feelsLike: orDefault(hourly.apparent_temperature?.[i], temp),
-      precipitationMm: orDefault(hourly.precipitation?.[i]),
-      precipitationProbability: orDefault(hourly.precipitation_probability?.[i]),
-      windGustsKmh: orDefault(hourly.windgusts_10m?.[i]),
+      feelsLike: orDefault(consensus('apparent_temperature', i), temp),
+      precipitationMm: orDefault(consensus('precipitation', i)),
+      precipitationProbability: orDefault(consensus('precipitation_probability', i)),
+      windGustsKmh: orDefault(consensus('windgusts_10m', i)),
+      // L'enveloppe entre modèles, pour la bande d'incertitude du tracé. Nulle
+      // en mono-modèle : il n'y a alors aucun désaccord à représenter.
+      feelsLikeLow: enveloppe?.low ?? null,
+      feelsLikeHigh: enveloppe?.high ?? null,
     });
   });
 
   return parJour;
+}
+
+/**
+ * Le désaccord typique de la journée, en degrés.
+ *
+ * La médiane des écarts horaires, pas leur maximum : une heure aberrante ne
+ * doit pas faire passer une journée consensuelle pour incertaine.
+ */
+function spreadOfDay(hours) {
+  const ecarts = hours
+    .filter((h) => h.feelsLikeLow !== null && h.feelsLikeHigh !== null)
+    .map((h) => h.feelsLikeHigh - h.feelsLikeLow);
+
+  return ecarts.length > 0 ? median(ecarts) : null;
 }
 
 export function normalizeForecast(payload) {
@@ -88,41 +148,53 @@ export function normalizeForecast(payload) {
     throw new WeatherError('Prévision illisible : le service n’a pas renvoyé de jours.');
   }
 
-  const heures = hoursByDate(payload.hourly);
+  const models = modelsPresent(payload);
+  const heures = hoursByDate(payload.hourly, models);
+  const consensus = (variable, i) => median(acrossModels(daily, variable, models, i));
 
   return daily.time.map((date, i) => {
     // Les rafales sont parfois absentes ; le vent moyen vaut mieux que zéro,
     // qui ferait passer une journée ventée pour calme.
-    const windMaxKmh = orDefault(daily.windspeed_10m_max?.[i]);
-    const windGustsKmh = orDefault(daily.windgusts_10m_max?.[i], windMaxKmh);
+    const windMaxKmh = orDefault(consensus('windspeed_10m_max', i));
+    const windGustsKmh = orDefault(consensus('windgusts_10m_max', i), windMaxKmh);
+    const hours = heures.get(date) ?? [];
 
     return {
       date,
-      tempMin: orDefault(daily.temperature_2m_min?.[i]),
-      tempMax: orDefault(daily.temperature_2m_max?.[i]),
+      tempMin: orDefault(consensus('temperature_2m_min', i)),
+      tempMax: orDefault(consensus('temperature_2m_max', i)),
       feelsLikeMin: orDefault(
-        daily.apparent_temperature_min?.[i],
-        orDefault(daily.temperature_2m_min?.[i]),
+        consensus('apparent_temperature_min', i),
+        orDefault(consensus('temperature_2m_min', i)),
       ),
       feelsLikeMax: orDefault(
-        daily.apparent_temperature_max?.[i],
-        orDefault(daily.temperature_2m_max?.[i]),
+        consensus('apparent_temperature_max', i),
+        orDefault(consensus('temperature_2m_max', i)),
       ),
-      precipitationMm: orDefault(daily.precipitation_sum?.[i]),
-      precipitationProbability: orDefault(daily.precipitation_probability_max?.[i]),
+      precipitationMm: orDefault(consensus('precipitation_sum', i)),
+      precipitationProbability: orDefault(consensus('precipitation_probability_max', i)),
       windMaxKmh,
       windGustsKmh,
-      uvIndex: orDefault(daily.uv_index_max?.[i]),
-      weatherCode: orDefault(daily.weathercode?.[i]),
+      uvIndex: orDefault(consensus('uv_index_max', i)),
+      // Le code météo est une catégorie, pas une grandeur : une médiane de
+      // codes n'aurait aucun sens. On prend celui du premier modèle qui parle.
+      weatherCode: orDefault(acrossModels(daily, 'weathercode', models, i).find((c) => c != null)),
       // sky.js a besoin d'une plage de jour pour situer l'heure courante ;
       // sans elle il ne saurait pas distinguer midi de minuit.
-      sunrise: orDefault(daily.sunrise?.[i], `${date}T06:00`),
-      sunset: orDefault(daily.sunset?.[i], `${date}T20:00`),
+      sunrise: orDefault(
+        acrossModels(daily, 'sunrise', models, i).find((v) => v != null),
+        `${date}T06:00`,
+      ),
+      sunset: orDefault(
+        acrossModels(daily, 'sunset', models, i).find((v) => v != null),
+        `${date}T20:00`,
+      ),
       // Lever et coucher sont donnés en heure locale AU LIEU. Sans son
       // décalage, on les comparerait à l'heure du navigateur — faux dès qu'on
       // regarde une ville d'un autre fuseau.
       utcOffsetSeconds: orDefault(payload.utc_offset_seconds),
-      hours: heures.get(date) ?? [],
+      hours,
+      feelsLikeSpread: spreadOfDay(hours),
     };
   });
 }
@@ -142,14 +214,7 @@ async function getJson(url) {
   return response.json();
 }
 
-/**
- * Prévision pour aujourd'hui et demain.
- *
- * @param {number} latitude
- * @param {number} longitude
- * @returns {Promise<object[]>} deux DayWeather
- */
-export async function fetchForecast(latitude, longitude) {
+function forecastUrl(latitude, longitude, models) {
   const url = new URL(FORECAST_URL);
   url.searchParams.set('latitude', latitude);
   url.searchParams.set('longitude', longitude);
@@ -157,8 +222,29 @@ export async function fetchForecast(latitude, longitude) {
   url.searchParams.set('hourly', HOURLY_FIELDS.join(','));
   url.searchParams.set('forecast_days', '2');
   url.searchParams.set('timezone', 'auto');
+  if (models.length > 0) url.searchParams.set('models', models.join(','));
 
-  return normalizeForecast(await getJson(url));
+  return url;
+}
+
+/**
+ * Prévision pour aujourd'hui et demain, agrégée sur cinq centres de prévision.
+ *
+ * En cas d'échec de la requête d'ensemble — un modèle retiré, une variable
+ * renommée, une limite atteinte — on retombe sur une requête simple. Perdre la
+ * mesure du désaccord vaut mieux qu'afficher une page en panne.
+ *
+ * @param {number} latitude
+ * @param {number} longitude
+ * @returns {Promise<object[]>} deux DayWeather
+ */
+export async function fetchForecast(latitude, longitude) {
+  try {
+    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, MODELS)));
+  } catch (error) {
+    console.warn('Ensemble multi-modèles indisponible, repli sur une source unique.', error);
+    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, [])));
+  }
 }
 
 /**

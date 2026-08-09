@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeForecast } from '../js/weather.js';
+import { normalizeForecast, MODELS } from '../js/weather.js';
 
 /** Réponse Open-Meteo telle qu'elle arrive, pour deux jours. */
 function apiResponse(overrides = {}) {
@@ -65,6 +65,7 @@ test('reporte chaque champ de l’API sur le bon champ du contrat', () => {
     sunrise: '2026-08-07T06:34',
     sunset: '2026-08-07T21:22',
     utcOffsetSeconds: 7200,
+    feelsLikeSpread: null,
   });
 });
 
@@ -110,6 +111,9 @@ test('une valeur nulle devient une valeur neutre, jamais null', () => {
 
   for (const jour of jours) {
     for (const [champ, valeur] of Object.entries(jour)) {
+      // L'enveloppe entre modèles est légitimement nulle en mono-modèle :
+      // prétendre mesurer un accord entre une seule source serait faux.
+      if (champ === 'feelsLikeSpread') continue;
       assert.notEqual(valeur, null, `${champ} ne doit jamais être null`);
       assert.notEqual(valeur, undefined, `${champ} ne doit jamais être undefined`);
     }
@@ -155,6 +159,8 @@ test('une heure porte tout ce dont la courbe a besoin', () => {
     precipitationMm: 3.2,
     precipitationProbability: 80,
     windGustsKmh: 12,
+    feelsLikeLow: null,
+    feelsLikeHigh: null,
   });
 });
 
@@ -190,4 +196,86 @@ test('sans bloc horaire, le tableau est vide plutôt qu’absent', () => {
   const [jour] = normalizeForecast(payload);
 
   assert.deepEqual(jour.hours, []);
+});
+
+/* --------------------------------------------------- l’ensemble de modèles */
+
+/** Réponse multi-modèles : chaque champ suffixé par le nom du modèle. */
+function ensembleResponse(parModele) {
+  const daily = { time: ['2026-08-07'] };
+  const hourly = { time: Array.from({ length: 24 }, (_, h) => `2026-08-07T${String(h).padStart(2, '0')}:00`) };
+
+  for (const [modele, valeurs] of Object.entries(parModele)) {
+    for (const [champ, v] of Object.entries(valeurs.daily ?? {})) daily[`${champ}_${modele}`] = [v];
+    for (const [champ, v] of Object.entries(valeurs.hourly ?? {})) {
+      hourly[`${champ}_${modele}`] = Array(24).fill(v);
+    }
+  }
+
+  return { daily, hourly, utc_offset_seconds: 0 };
+}
+
+test('les agrégats quotidiens sont la médiane des modèles', () => {
+  const payload = ensembleResponse({
+    [MODELS[0]]: { daily: { apparent_temperature_max: 30 } },
+    [MODELS[1]]: { daily: { apparent_temperature_max: 34 } },
+    [MODELS[2]]: { daily: { apparent_temperature_max: 32 } },
+  });
+
+  assert.equal(normalizeForecast(payload)[0].feelsLikeMax, 32);
+});
+
+test('un modèle muet sur une variable n’entre pas dans sa médiane', () => {
+  // Météo-France et UKMO ne publient pas la probabilité de pluie. Les compter
+  // pour zéro ferait passer une journée pluvieuse pour sèche.
+  const payload = ensembleResponse({
+    [MODELS[0]]: { daily: { precipitation_probability_max: 80 } },
+    [MODELS[1]]: { daily: { precipitation_probability_max: 90 } },
+    [MODELS[2]]: { daily: { precipitation_probability_max: null } },
+    [MODELS[3]]: { daily: { precipitation_probability_max: null } },
+  });
+
+  assert.equal(normalizeForecast(payload)[0].precipitationProbability, 85);
+});
+
+test('chaque heure porte l’enveloppe du ressenti entre modèles', () => {
+  const payload = ensembleResponse({
+    [MODELS[0]]: { hourly: { apparent_temperature: 12 } },
+    [MODELS[1]]: { hourly: { apparent_temperature: 18 } },
+    [MODELS[2]]: { hourly: { apparent_temperature: 15 } },
+  });
+
+  const [jour] = normalizeForecast(payload);
+  assert.equal(jour.hours[0].feelsLike, 15, 'la médiane');
+  assert.equal(jour.hours[0].feelsLikeLow, 12);
+  assert.equal(jour.hours[0].feelsLikeHigh, 18);
+});
+
+test('le désaccord du jour est l’écart horaire typique, pas le pire', () => {
+  // Une heure aberrante ne doit pas faire passer une journée consensuelle pour
+  // incertaine : on prend la médiane des écarts, pas leur maximum.
+  const payload = ensembleResponse({
+    [MODELS[0]]: { hourly: { apparent_temperature: 14 } },
+    [MODELS[1]]: { hourly: { apparent_temperature: 16 } },
+  });
+
+  assert.equal(normalizeForecast(payload)[0].feelsLikeSpread, 2);
+});
+
+test('un seul modèle : pas d’enveloppe, pas de désaccord', () => {
+  // Le repli mono-modèle ne doit pas prétendre mesurer un accord inexistant.
+  const [jour] = normalizeForecast(apiResponse());
+
+  assert.equal(jour.feelsLikeSpread, null);
+  assert.equal(jour.hours[0].feelsLikeLow, null);
+  assert.equal(jour.hours[0].feelsLikeHigh, null);
+});
+
+test('la requête simple reste lisible telle quelle', () => {
+  // Le repli produit des champs sans suffixe : la normalisation doit les lire
+  // sans broncher, sinon la page tombe quand l'ensemble échoue.
+  const [jour] = normalizeForecast(apiResponse());
+
+  assert.equal(jour.feelsLikeMax, 23.1);
+  assert.equal(jour.hours[19].precipitationProbability, 80);
 });

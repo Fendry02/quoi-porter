@@ -7,7 +7,9 @@
  *   carry    ce qu'on emporte en plus ;
  *   weather  pourquoi, en une phrase ;
  *   notes    les points d'attention, chacun avec son libellé, son horaire en
- *            mots, et la plage d'heures brute dont la frise a besoin.
+ *            mots, et la plage d'heures brute dont la frise a besoin ;
+ *   confidence  un avertissement, quand les centres de prévision divergent
+ *            assez pour que la tenue soit en jeu.
  *
  * La tenue passe devant parce que c'est ce qu'on est venu chercher. Une version
  * précédente la noyait au milieu d'une phrase météo et en taisait la moitié
@@ -19,7 +21,8 @@
  * l'autre. La tenue, elle, ne varie jamais — c'est un fait, pas une tournure.
  */
 
-import { relevantHours, spanOf, peakOf, phraseSpan, phraseHour } from './hours.js';
+import { relevantHours, spanOf, peakOf, phraseSpan } from './hours.js';
+import { outfitIsRobust } from './rules.js';
 
 /** Espace insécable, pour ne pas séparer le nombre de son unité en fin de ligne. */
 const NBSP = ' ';
@@ -153,10 +156,30 @@ function noteFor(alert, hours, window) {
 }
 
 /**
+ * Prévient quand les modèles ne s'accordent pas assez pour qu'on se fie à la
+ * tenue.
+ *
+ * On ne se déclenche pas sur un seuil en degrés : le désaccord typique entre
+ * centres tourne autour de 2 °C, un seuil fixe crierait au loup une fois sur
+ * deux. On ne prévient que lorsque le désaccord franchit une frontière du
+ * barème — c'est-à-dire quand il change réellement les vêtements.
+ */
+function confidenceWarning(weather) {
+  if (outfitIsRobust(weather)) return null;
+
+  const ecart = weather.feelsLikeSpread.toLocaleString('fr-FR', {
+    maximumFractionDigits: 1,
+  });
+
+  return `Les modèles divergent de ${ecart}${NBSP}°C — la tenue pourrait être différente.`;
+}
+
+/**
  * @param {object} weather un DayWeather normalisé
  * @param {object} outfit l'Outfit produit par buildOutfit
  * @param {Date} at l'instant courant, pour ne dater que ce qui reste à venir
  * @returns {{wear: string, carry: string|null, weather: string,
+ *            confidence: string|null,
  *            notes: {label: string, text: string, when: string|null,
  *                    span: {from: number, to: number}|null}[]}}
  */
@@ -183,6 +206,7 @@ export function describeDay(weather, outfit, at) {
     wear: wearSentence(outfit),
     carry: carrySentence(outfit),
     weather: `${variant}, ${Math.round(pivot)}${NBSP}°C ressentis.`,
+    confidence: confidenceWarning(weather),
     notes: outfit.alerts
       .slice()
       .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])

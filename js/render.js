@@ -142,6 +142,8 @@ function buildChart(timeline, label, events) {
 
   graph.append(
     svg('path', { d: timeline.area, class: 'chart__area' }),
+    // La bande passe sous la courbe : c'est un contexte, pas une donnée.
+    ...(timeline.band ? [svg('path', { d: timeline.band, class: 'chart__band' })] : []),
     ...timeline.bars.map((b) =>
       svg('rect', { x: b.x, y: b.y, width: b.width, height: b.height, class: 'chart__rain' }),
     ),
@@ -262,6 +264,12 @@ function chartLabel(timeline) {
     `Ressenti de ${debut} h à ${fin} h : de ${Math.round(timeline.range.min)}° ` +
     `à ${Math.round(timeline.range.max)}°, maximum vers ${timeline.peak.hour} h.`;
 
+  if (timeline.band) {
+    return averses.length > 0
+      ? `${base} Pluie probable vers ${averses.join(', ')}. La zone claire montre l’écart entre modèles.`
+      : `${base} La zone claire montre l’écart entre modèles.`;
+  }
+
   return averses.length > 0 ? `${base} Pluie probable vers ${averses.join(', ')}.` : base;
 }
 
@@ -276,6 +284,12 @@ export function renderDay(article, day, label) {
     buildOutfitBlock(day.phrasing),
     element('p', 'day__weather', day.phrasing.weather),
   ];
+
+  // L'avertissement porte sur la prévision, pas sur le temps : il se place
+  // avec la phrase météo, jamais parmi les points d'attention.
+  if (day.phrasing.confidence) {
+    contenu.push(element('p', 'day__confidence', day.phrasing.confidence));
+  }
 
   if (day.phrasing.notes.length > 0) contenu.push(buildNotes(day.phrasing.notes));
 

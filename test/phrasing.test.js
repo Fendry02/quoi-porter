@@ -366,3 +366,45 @@ test('chaque note porte le libellé court de son alerte', () => {
   assert.ok(notes.some((n) => n.label === 'Vent'));
   for (const note of notes) assert.equal(typeof note.label, 'string');
 });
+
+/* ------------------------------------------ la confiance dans la prévision */
+
+test('quand les modèles s’accordent, aucun avertissement', () => {
+  assert.equal(describe({ feelsLikeMin: 12, feelsLikeMax: 12, feelsLikeSpread: 1 }).confidence, null);
+});
+
+test('sans désaccord mesuré, aucun avertissement non plus', () => {
+  // Le repli mono-modèle : on ne prétend pas savoir ce qu'on n'a pas mesuré.
+  assert.equal(describe({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: null }).confidence, null);
+});
+
+test('quand le désaccord change la tenue, la page le dit', () => {
+  // 15°C d'habillage est une frontière du barème ; 4°C d'écart place les
+  // modèles de part et d'autre.
+  const { confidence } = describe({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: 4 });
+
+  assert.ok(confidence, 'un avertissement est attendu');
+  assert.match(confidence, /modèles/i);
+  assert.match(confidence, /4\s*°C/, 'l’ampleur du désaccord doit être chiffrée');
+  assert.doesNotMatch(confidence, /\d\.\d/, 'les décimales s’écrivent avec une virgule');
+});
+
+test('un gros désaccord loin d’une frontière ne dit rien', () => {
+  // Même 4°C d'écart, mais en pleine canicule : la tenue ne bouge pas, donc
+  // avertir ne servirait qu'à inquiéter.
+  assert.equal(describe({ feelsLikeMin: 32, feelsLikeMax: 32, feelsLikeSpread: 4 }).confidence, null);
+});
+
+test('l’avertissement ne parle pas de vêtements précis', () => {
+  // Il porte sur la fiabilité de la prévision, pas sur ce qu'on met : lister
+  // des vêtements ici contredirait la tenue affichée juste au-dessus.
+  const { confidence } = describe({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: 4 });
+
+  assert.doesNotMatch(confidence, /pull|jean|chemise|manteau/i);
+});
+
+test('le désaccord s’écrit avec une virgule décimale', () => {
+  const { confidence } = describe({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: 3.5 });
+
+  assert.match(confidence, /3,5\s*°C/);
+});

@@ -271,3 +271,32 @@ const MODIFIERS = [
 export function buildOutfit(weather) {
   return MODIFIERS.reduce((outfit, modifier) => modifier(weather, outfit), baseOutfit(weather));
 }
+
+/**
+ * La tenue tiendrait-elle si les modèles avaient raison à l'autre bout ?
+ *
+ * On habille au bas de la fourchette entre centres de prévision, puis au haut,
+ * et on compare les vêtements obtenus. C'est la seule question qui compte :
+ * un désaccord de 4 °C ne vaut d'être signalé que s'il franchit une frontière
+ * du barème. Loin d'un palier, il ne change rien ; sur une frontière, il change
+ * tout — et un seuil en degrés, lui, ne saurait pas faire la différence.
+ *
+ * @param {object} weather un DayWeather normalisé
+ * @returns {boolean} vrai si la tenue ne dépend pas de quel modèle a raison
+ */
+export function outfitIsRobust(weather) {
+  const ecart = weather.feelsLikeSpread;
+  if (!ecart) return true;
+
+  const decale = (delta) =>
+    buildOutfit({
+      ...weather,
+      feelsLikeMin: weather.feelsLikeMin + delta,
+      feelsLikeMax: weather.feelsLikeMax + delta,
+    });
+
+  const bas = decale(-ecart / 2).layers;
+  const haut = decale(ecart / 2).layers;
+
+  return JSON.stringify(bas) === JSON.stringify(haut);
+}

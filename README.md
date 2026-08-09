@@ -37,6 +37,7 @@ Des modules purs au centre, trois contrats de données entre eux : `DayWeather`,
 | `js/rules.js` | **pur** — `DayWeather` → `Outfit` |
 | `js/phrasing.js` | **pur** — `Outfit` → phrase et points d'attention |
 | `js/sky.js` | **pur** — `DayWeather` + instant → `SkyMood` |
+| `js/ensemble.js` | **pur** — médiane et étendue sur plusieurs modèles météo |
 | `js/hours.js` | **pur** — fenêtre du jour, plages, pics, et leur mise en mots |
 | `js/timeline.js` | **pur** — `DayWeather` + instant → géométrie du déroulé horaire |
 | `js/scene/` | le moteur three.js : dôme, nuages, précipitations, qualité |
@@ -99,6 +100,23 @@ Le design complet est dans
 
 [Open-Meteo](https://open-meteo.com) — gratuit, sans clé, sans inscription. Aucun backend,
 aucun compte, aucun secret. Le lieu choisi est mémorisé en `localStorage`.
+
+**Cinq centres de prévision** sont interrogés d'un coup : ECMWF, GFS, Météo-France, ICON et
+UK Met Office. On en prend la **médiane**, plus robuste qu'un modèle isolé — et à Oslo elle
+diffère de 1,6 °C du modèle par défaut, assez pour changer la tenue.
+
+Mais le vrai gain n'est pas la précision, c'est de **savoir quand ne pas faire confiance**.
+La page ne prévient pas sur un seuil en degrés : le désaccord typique tourne autour de 2 °C,
+un seuil fixe crierait au loup une fois sur deux. Elle habille au bas de la fourchette, puis
+au haut, et ne dit quelque chose que si les vêtements diffèrent. La courbe porte en outre une
+bande claire montrant l'écart entre modèles.
+
+Chaque variable est agrégée sur les modèles qui la publient, jamais modèle par modèle :
+ECMWF n'a pas les rafales, Météo-France et UKMO n'ont pas la probabilité de pluie. Compter
+une absence pour zéro ferait passer une journée pluvieuse pour sèche.
+
+Si la requête d'ensemble échoue, on retombe sur une requête simple — et on affiche alors
+franchement aucun désaccord plutôt que d'en inventer un.
 
 ## À venir
 

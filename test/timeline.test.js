@@ -179,3 +179,62 @@ test('buildTimeline ne mute pas la météo qu’on lui passe', () => {
 
   assert.deepEqual(weather, copie);
 });
+
+/* ------------------------------------------------ la bande d’incertitude */
+
+/** Journée dont chaque heure porte une enveloppe entre modèles. */
+function dayWithBand(demiLargeur) {
+  const base = day({ date: '2026-08-09' });
+  return {
+    ...base,
+    hours: base.hours.map((h) => ({
+      ...h,
+      feelsLikeLow: h.feelsLike - demiLargeur,
+      feelsLikeHigh: h.feelsLike + demiLargeur,
+    })),
+  };
+}
+
+test('sans enveloppe, il n’y a pas de bande', () => {
+  // Le repli mono-modèle : dessiner une bande de largeur nulle laisserait
+  // croire à un accord parfait alors qu'on n'a rien mesuré.
+  assert.equal(buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00')).band, null);
+});
+
+test('avec enveloppe, la bande est un contour fermé', () => {
+  const t = buildTimeline(dayWithBand(2), at('08', '12:00'));
+
+  assert.match(t.band, /^M[\d.]+,[\d.]+/);
+  assert.match(t.band, /Z$/, 'le contour doit se refermer');
+});
+
+test('la bande encadre la courbe sans jamais la croiser', () => {
+  const t = buildTimeline(dayWithBand(2), at('08', '12:00'));
+  const y = (chemin) => [...chemin.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map((m) => Number(m[2]));
+
+  const hauts = y(t.band).slice(0, t.points.length);
+  const bas = y(t.band).slice(t.points.length);
+
+  for (const [i, p] of t.points.entries()) {
+    assert.ok(hauts[i] <= p.y + 0.01, `le haut de la bande passe sous la courbe en ${i}`);
+    assert.ok(bas[bas.length - 1 - i] >= p.y - 0.01, `le bas passe au-dessus en ${i}`);
+  }
+});
+
+test('la bande reste dans le repère', () => {
+  // Une enveloppe très large ne doit pas déborder du cadre et recouvrir les
+  // barres de pluie ou le libellé du pic.
+  const t = buildTimeline(dayWithBand(30), at('08', '12:00'));
+  const y = [...t.band.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map((m) => Number(m[2]));
+
+  for (const v of y) assert.ok(v >= 0 && v <= VIEW.height, `y hors repère : ${v}`);
+});
+
+test('l’échelle verticale englobe l’enveloppe, pas seulement la médiane', () => {
+  // Sans ça, la bande sortirait du cadre dès que les modèles divergent.
+  const etroite = buildTimeline(dayWithBand(0.5), at('08', '12:00'));
+  const large = buildTimeline(dayWithBand(6), at('08', '12:00'));
+
+  assert.ok(large.range.min < etroite.range.min, 'le bas de l’échelle doit descendre');
+  assert.ok(large.range.max > etroite.range.max, 'et le haut monter');
+});

@@ -36,7 +36,13 @@ export function buildTimeline(weather, at) {
   const heures = relevantHours(weather, at);
   if (heures.length < MIN_POINTS) return null;
 
-  const ressentis = heures.map((h) => h.feelsLike);
+  // L'échelle verticale doit englober l'enveloppe entre modèles, pas seulement
+  // la médiane : sinon la bande d'incertitude sortirait du cadre dès que les
+  // centres de prévision divergent.
+  const aEnveloppe = heures.every((h) => h.feelsLikeLow != null && h.feelsLikeHigh != null);
+  const ressentis = heures.flatMap((h) =>
+    aEnveloppe ? [h.feelsLike, h.feelsLikeLow, h.feelsLikeHigh] : [h.feelsLike],
+  );
   const min = Math.min(...ressentis);
   const max = Math.max(...ressentis);
   // Une journée parfaitement plate donnerait une division par zéro : on lui
@@ -46,9 +52,12 @@ export function buildTimeline(weather, at) {
   const hautCourbe = TOP_PAD;
   const basCourbe = VIEW.height - RAIN_BAND;
 
+  const y = (valeur) =>
+    round(basCourbe - ((valeur - min) / amplitude) * (basCourbe - hautCourbe));
+
   const points = heures.map((h, i) => ({
     x: round((i / (heures.length - 1)) * VIEW.width),
-    y: round(basCourbe - ((h.feelsLike - min) / amplitude) * (basCourbe - hautCourbe)),
+    y: y(h.feelsLike),
     hour: h.hour,
     feelsLike: h.feelsLike,
     probability: h.precipitationProbability,
@@ -56,6 +65,19 @@ export function buildTimeline(weather, at) {
 
   const curve = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
   const area = `${curve} L${VIEW.width},${basCourbe} L0,${basCourbe} Z`;
+
+  // La bande d'incertitude : le haut de l'enveloppe à l'aller, le bas au
+  // retour. Absente en mono-modèle — une bande de largeur nulle laisserait
+  // croire à un accord parfait alors qu'on n'a rien mesuré.
+  const band = aEnveloppe
+    ? [
+        ...heures.map((h, i) => `${i === 0 ? 'M' : 'L'}${points[i].x},${y(h.feelsLikeHigh)}`),
+        ...heures
+          .map((h, i) => `L${points[i].x},${y(h.feelsLikeLow)}`)
+          .reverse(),
+        'Z',
+      ].join(' ')
+    : null;
 
   // Une barre par heure où la pluie est plausible. En dessous, on ne salit pas
   // le tracé avec des traits de deux pixels.
@@ -86,6 +108,7 @@ export function buildTimeline(weather, at) {
     points,
     curve,
     area,
+    band,
     bars,
     ticks,
     peak: { x: sommet.x, y: sommet.y, hour: sommet.hour, label: `${Math.round(sommet.feelsLike)}°` },

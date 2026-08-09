@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildOutfit } from '../js/rules.js';
+import { buildOutfit, outfitIsRobust } from '../js/rules.js';
 
 /**
  * Journée plate : le ressenti ne bouge pas de la journée, donc le point
@@ -465,4 +465,37 @@ test('les libellés sont ceux qu’on attend', () => {
       if (attendus[alert.kind]) assert.equal(alert.label, attendus[alert.kind], alert.kind);
     }
   }
+});
+
+/* ------------------------------------------ la robustesse au désaccord */
+
+test('sans désaccord mesuré, la tenue est réputée solide', () => {
+  // Le repli mono-modèle ne mesure aucun désaccord : on ne va pas inventer
+  // une incertitude qu'on ne sait pas évaluer.
+  assert.equal(outfitIsRobust(calmDay({ feelsLikeSpread: null })), true);
+});
+
+test('un petit désaccord ne change pas la tenue', () => {
+  // 12°C ± 0,5 reste au même palier : même pull, même jean.
+  assert.equal(outfitIsRobust(calmDay({ feelsLikeMin: 12, feelsLikeMax: 12, feelsLikeSpread: 1 })), true);
+});
+
+test('un désaccord qui franchit un palier rend la tenue incertaine', () => {
+  // 15°C d'habillage est la frontière entre « pull » et « chemise ». Un écart
+  // de 4°C entre modèles place la moitié d'entre eux de chaque côté.
+  assert.equal(outfitIsRobust(calmDay({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: 4 })), false);
+});
+
+test('la robustesse se juge sur les vêtements, pas sur les degrés', () => {
+  // Même écart de 4°C, mais loin de toute frontière : la tenue ne bouge pas.
+  assert.equal(outfitIsRobust(calmDay({ feelsLikeMin: 32, feelsLikeMax: 32, feelsLikeSpread: 4 })), true);
+});
+
+test('outfitIsRobust ne mute pas la météo qu’on lui passe', () => {
+  const weather = calmDay({ feelsLikeMin: 15, feelsLikeMax: 15, feelsLikeSpread: 4 });
+  const copie = structuredClone(weather);
+
+  outfitIsRobust(weather);
+
+  assert.deepEqual(weather, copie);
 });
