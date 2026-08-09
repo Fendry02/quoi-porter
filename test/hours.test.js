@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { relevantHours, spanOf, peakOf, phraseSpan, phraseHour } from '../js/hours.js';
+import { relevantHours, spanOf, peakOf, phraseSpan, phraseHour, shortSpan } from '../js/hours.js';
 
 function day(overrides = {}) {
   return {
@@ -124,4 +124,34 @@ test('une heure seule se dit « vers »', () => {
 test('minuit se dit proprement', () => {
   assert.equal(phraseHour(0), 'vers 0 h');
   assert.equal(phraseSpan({ from: 22, to: 23 }, { from: 8, to: 23 }), 'à partir de 22 h');
+});
+
+/* ------------------------------------------------- l'horodatage de la frise */
+
+/**
+ * On écrit l'insécable en échappement : collé dans le code, il est invisible
+ * et indiscernable d'une espace ordinaire — de quoi passer une heure à chercher
+ * pourquoi deux chaînes identiques à l'œil ne le sont pas.
+ */
+const NBSP = '\u00A0';
+
+test('un instant se marque d’une seule heure', () => {
+  assert.equal(shortSpan({ from: 17, to: 17 }), `17${NBSP}h`);
+});
+
+test('une plage se marque de ses deux bornes, l’unité une seule fois', () => {
+  // « 14 h – 18 h » doublerait l'unité dans une légende qui doit tenir contre
+  // une barre : on ne l'écrit qu'une fois, au bout.
+  assert.equal(shortSpan({ from: 14, to: 18 }), `14–18${NBSP}h`);
+});
+
+test('l’horodatage ne se coupe jamais en fin de ligne', () => {
+  // Une légende posée sur l'axe se replierait sous sa barre si le navigateur
+  // pouvait couper avant l'unité — le tiret cadratin est déjà insécable ici.
+  assert.equal(shortSpan({ from: 14, to: 18 }).includes('\u0020'), false, 'espace sécable');
+  assert.equal(shortSpan({ from: 17, to: 17 }).includes('\u0020'), false, 'espace sécable');
+});
+
+test('minuit se dit 0 h, pas rien', () => {
+  assert.equal(shortSpan({ from: 0, to: 3 }), `0–3${NBSP}h`);
 });

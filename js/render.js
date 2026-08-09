@@ -7,6 +7,7 @@
  */
 
 import { VIEW } from './timeline.js';
+import { shortSpan } from './hours.js';
 
 /** Code WMO → libellé lisible. */
 const CONDITIONS = new Map([
@@ -217,15 +218,18 @@ function buildEvents(timeline, events) {
       barre.style.width = `${x2 - x1}%`;
     }
 
+    // Le libellé porte son horodatage : sans lui, la barre dit « quoi » et
+    // « combien de temps » mais jamais « quand », et il faut redescendre à
+    // l'axe pour interpoler entre deux repères espacés de quatre heures.
+    // Ce sont les heures bornées à la fenêtre, celles que la barre dessine
+    // réellement — l'horodatage ne peut pas contredire le trait qu'il légende.
     const libelle = element('span', 'events__label', event.label);
-    // Collé au bord droit, un libellé posé après la barre déborderait : on le
-    // rabat de l'autre côté.
-    if (x2 > 76) {
-      libelle.style.right = `${100 - x1}%`;
-      libelle.classList.add('events__label--before');
-    } else {
-      libelle.style.left = `${x2}%`;
-    }
+    libelle.append(element('span', 'events__hour', shortSpan({ from: debut, to: fin })));
+
+    // Où le poser se décide après disposition, dans placeEventLabels : il y
+    // faut la largeur réelle du libellé, qu'on ne connaît pas encore.
+    ligne.dataset.from = x1;
+    ligne.dataset.to = x2;
 
     ligne.append(barre, libelle);
     bloc.append(ligne);
@@ -305,6 +309,69 @@ export function renderDay(article, day, label) {
   contenu.push(buildStrip(day.weather));
   article.replaceChildren(...contenu);
   article.hidden = false;
+
+  // Même tâche que l'insertion : aucun rendu ne s'intercale, les libellés ne
+  // sont jamais peints à leur position par défaut.
+  placeEventLabels(article);
+}
+
+/** Espace entre une barre et son libellé, en pixels. */
+const LABEL_GAP = 5;
+
+/**
+ * Place les libellés de la frise, une fois la page disposée.
+ *
+ * Impossible de le décider en construisant le DOM : il y faut la largeur réelle
+ * du libellé et celle du tracé, qui dépendent de la police chargée et de la
+ * fenêtre.
+ *
+ * Trois positions, par ordre de préférence. Après la barre — c'est le sens de
+ * lecture. Avant, quand la fin de la barre serre trop le bord droit. Au-dessus
+ * en dernier recours : une barre qui couvre toute la fenêtre ne laisse de place
+ * d'aucun côté.
+ *
+ * C'est ce dernier cas que l'ancienne règle manquait. Elle basculait sur la
+ * seule fin de la barre, sans vérifier qu'il y avait de quoi l'accueillir à
+ * gauche — et un « gel toute la journée » partait alors hors du cadre.
+ *
+ * @param {ParentNode} root la portion de page à replacer
+ */
+export function placeEventLabels(root) {
+  for (const chart of root.querySelectorAll('.chart')) {
+    const largeur = chart.getBoundingClientRect().width;
+    // Onglet caché ou page pas encore disposée : mesurer ne donnerait que des
+    // zéros. On replacera au prochain redimensionnement.
+    if (largeur === 0) continue;
+
+    for (const ligne of chart.querySelectorAll('.events__row')) {
+      const libelle = ligne.querySelector('.events__label');
+      const depart = Number(ligne.dataset.from);
+      const fin = Number(ligne.dataset.to);
+
+      // On repart de zéro : la mesure doit porter sur le libellé, pas sur le
+      // placement qu'on lui avait donné à la fenêtre précédente.
+      libelle.classList.remove('events__label--before');
+      ligne.classList.remove('events__row--stacked');
+      libelle.style.left = '';
+      libelle.style.right = '';
+
+      const besoin = libelle.getBoundingClientRect().width + LABEL_GAP;
+      const apres = largeur - (fin / 100) * largeur;
+      const avant = (depart / 100) * largeur;
+
+      if (besoin <= apres) {
+        libelle.style.left = `${fin}%`;
+      } else if (besoin <= avant) {
+        libelle.style.right = `${100 - depart}%`;
+        libelle.classList.add('events__label--before');
+      } else {
+        // Au-dessus, aligné sur le début de la barre — et ramené dans le cadre
+        // si même de là il dépassait.
+        ligne.classList.add('events__row--stacked');
+        libelle.style.left = `${Math.min(avant, Math.max(0, largeur - besoin))}px`;
+      }
+    }
+  }
 }
 
 /**

@@ -694,3 +694,37 @@ body {
   margin-left: 0;
   margin-right: 0.6ch;
 }
+
+/*
+ * L'horodatage, accolé au nom. La barre dit « quoi » et « combien de temps » ;
+ * lui seul dit « quand », sans avoir à redescendre à l'axe pour interpoler
+ * entre deux repères espacés de quatre heures.
+ *
+ * Il abandonne l'interlettrage des capitales — sur des chiffres, cet
+ * espacement ne fait que délier le nombre — et garde son « h » en minuscule,
+ * une unité n'étant pas un titre. Même densité que le libellé pour le reste :
+ * les deux forment une seule légende, pas un texte et sa note.
+ */
+.events__hour {
+  margin-left: 0.8ch;
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+}
+
+/*
+ * Une barre qui couvre toute la fenêtre ne laisse de place ni à sa droite ni à
+ * sa gauche : son libellé passe au-dessus. La ligne s'agrandit pour l'accueillir
+ * plutôt que de le laisser mordre la barre, où le trait le raierait.
+ */
+.events__row--stacked {
+  height: 1.7em;
+}
+
+.events__row--stacked .events__label {
+  top: 0.45em;
+  margin-left: 0;
+}
+
+.events__row--stacked .events__bar {
+  top: 1.3em;
+}

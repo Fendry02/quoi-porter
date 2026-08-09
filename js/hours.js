@@ -100,3 +100,22 @@ export function phraseSpan(span, window) {
 export function phraseHour(h) {
   return `vers ${heure(h)}`;
 }
+
+/**
+ * La même période, mais en horodatage : de quoi légender une barre.
+ *
+ * Sur la frise, le libellé seul ne dit que « quoi » et « combien de temps » ;
+ * pour savoir « quand », il faut redescendre à l'axe et interpoler entre deux
+ * repères espacés de quatre heures. L'horodatage répond sur place.
+ *
+ * Compact et insécable : la légende est posée contre sa barre en absolu, un
+ * retour à la ligne la détacherait de ce qu'elle désigne. D'où l'unité une
+ * seule fois, au bout, et des espaces insécables.
+ *
+ * @param {{from: number, to: number}} span
+ */
+export function shortSpan(span) {
+  if (span.from === span.to) return `${span.from} h`;
+
+  return `${span.from}–${span.to} h`;
+}

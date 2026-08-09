@@ -64,6 +64,16 @@ Les mêmes événements sont **posés sur l'axe** sous la courbe, à l'échelle 
 une barre par événement, une pastille pour un instant. Lire les notes une par une oblige à
 reconstituer la journée de tête ; la frise la donne d'un coup, avec les chevauchements.
 
+Chaque barre **porte son horodatage** : sans lui, elle dit « quoi » et « combien de temps »
+mais jamais « quand », et il faut redescendre à l'axe pour interpoler entre deux repères
+espacés de quatre heures. Ce sont les heures bornées à la fenêtre, celles que la barre
+dessine réellement — l'horodatage ne peut pas contredire le trait qu'il légende.
+
+Le libellé se place après la barre, avant elle si la fin serre le bord droit, au-dessus
+lorsqu'il n'y a de place d'aucun côté. Ce dernier cas est réel : une pluie qui dure toute la
+journée occupe toute la largeur. La décision demande la largeur mesurée du libellé et celle
+du tracé, donc elle se prend après disposition — et se reprend à chaque redimensionnement.
+
 Sous la phrase, une courbe trace le ressenti heure par heure avec la pluie en dessous. Elle
 part de l'heure qu'il est pour aujourd'hui, de 8 h pour demain, et disparaît en fin de
 soirée quand il reste trop peu d'heures pour tracer autre chose qu'un segment trompeur.

@@ -14,6 +14,7 @@ import {
   renderState,
   renderPlaceResults,
   applyInk,
+  placeEventLabels,
 } from './render.js';
 
 const STORAGE_KEY = 'weather-clothes.place';
@@ -333,7 +334,12 @@ teaser.addEventListener('click', () => {
 });
 
 window.addEventListener('scroll', onScroll, { passive: true });
-window.addEventListener('resize', onScroll);
+window.addEventListener('resize', () => {
+  onScroll();
+  // Le placement des libellés de la frise dépend de la largeur du tracé :
+  // mesuré une fois pour toutes, il serait faux dès le premier redimensionnement.
+  placeEventLabels(document);
+});
 
 /* ------------------------------------------------------------ démarrage */
 
