@@ -37,6 +37,7 @@ Des modules purs au centre, trois contrats de données entre eux : `DayWeather`,
 | `js/rules.js` | **pur** — `DayWeather` → `Outfit` |
 | `js/phrasing.js` | **pur** — `Outfit` → phrase et points d'attention |
 | `js/sky.js` | **pur** — `DayWeather` + instant → `SkyMood` |
+| `js/hours.js` | **pur** — fenêtre du jour, plages, pics, et leur mise en mots |
 | `js/timeline.js` | **pur** — `DayWeather` + instant → géométrie du déroulé horaire |
 | `js/scene/` | le moteur three.js : dôme, nuages, précipitations, qualité |
 | `js/render.js` | DOM |
@@ -54,9 +55,16 @@ moitié — « ce qui va de soi » — si bien qu'on ne voyait jamais une tenue,
 fragments : le moteur décidait « t-shirt, pull, jean, imperméable, baskets » et la page
 affichait « pull et imperméable ». On dit désormais tout, même le jean.
 
+**Chaque point d'attention porte son heure**, en tête et en monospace : on parcourt la marge
+gauche et on sait quand les choses arrivent sans lire les phrases. « Il va bien pleuvoir »
+sans horaire n'est qu'une demi-information.
+
 Sous la phrase, une courbe trace le ressenti heure par heure avec la pluie en dessous. Elle
 part de l'heure qu'il est pour aujourd'hui, de 8 h pour demain, et disparaît en fin de
 soirée quand il reste trop peu d'heures pour tracer autre chose qu'un segment trompeur.
+
+`hours.js` définit cette fenêtre une seule fois, pour le texte comme pour le tracé : sans
+ça, la courbe pourrait montrer une averse que les notes passeraient sous silence.
 
 `sky.js` isole complètement la scène de la météo — `scene/` ne connaît que des paramètres
 d'ambiance normalisés, jamais un code WMO. Tout y découle d'un seul nombre continu, la

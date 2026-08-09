@@ -209,6 +209,21 @@ body {
   opacity: 0.55;
 }
 
+/*
+ * L'heure d'un point d'attention. Monospace comme toute mesure du projet, ce
+ * qui la détache du conseil sans avoir besoin de gras ni de couleur.
+ */
+.day__when {
+  font-family: var(--mono);
+  font-size: 0.78em;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0.7;
+  /* Une respiration franche : sans elle, la monospace collée à la serif
+     ressemble à un défaut d'affichage plutôt qu'à une distinction voulue. */
+  margin-right: 0.85ch;
+}
+
 .day__strip {
   display: flex;
   flex-wrap: wrap;

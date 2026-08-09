@@ -90,6 +90,27 @@ function buildOutfitBlock(phrasing) {
   return bloc;
 }
 
+/**
+ * Les points d'attention, chacun précédé de son heure.
+ *
+ * L'horaire vient en tête plutôt qu'en queue : on parcourt la marge gauche et
+ * on voit quand les choses arrivent, sans lire les phrases. Il passe en
+ * monospace, comme toute mesure du projet, ce qui le détache du conseil sans
+ * avoir besoin de gras ni de couleur.
+ */
+function buildNotes(notes) {
+  const list = element('ul', 'day__notes');
+
+  for (const note of notes) {
+    const item = document.createElement('li');
+    if (note.when) item.append(element('span', 'day__when', note.when));
+    item.append(note.text);
+    list.append(item);
+  }
+
+  return list;
+}
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function svg(tag, attributes) {
@@ -189,11 +210,7 @@ export function renderDay(article, day, label) {
     element('p', 'day__weather', day.phrasing.weather),
   ];
 
-  if (day.phrasing.notes.length > 0) {
-    const list = element('ul', 'day__notes');
-    for (const note of day.phrasing.notes) list.append(element('li', null, note));
-    contenu.push(list);
-  }
+  if (day.phrasing.notes.length > 0) contenu.push(buildNotes(day.phrasing.notes));
 
   // Absent en fin de soirée, quand il reste trop peu d'heures pour tracer
   // autre chose qu'un segment trompeur.

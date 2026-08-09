@@ -172,7 +172,7 @@ function showDays(forecast, { silent = false } = {}) {
     return {
       weather,
       outfit,
-      phrasing: describeDay(weather, outfit),
+      phrasing: describeDay(weather, outfit, now),
       timeline: buildTimeline(weather, now),
     };
   });

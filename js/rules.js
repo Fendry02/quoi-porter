@@ -70,7 +70,9 @@ function temperatureAlerts(weather) {
     alerts.push({
       kind: 'heat',
       severity: weather.feelsLikeMax >= 35 ? 'high' : 'medium',
-      hint: 'Grosse chaleur — bois régulièrement et évite le plein soleil l’après-midi.',
+      // Pas de moment dans la phrase : c'est la note datée qui le porte, et le
+      // répéter ici donnerait « évite le plein soleil l'après-midi — vers 14 h ».
+      hint: 'Grosse chaleur — bois régulièrement et cherche l’ombre.',
     });
   }
 

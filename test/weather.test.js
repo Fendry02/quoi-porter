@@ -30,6 +30,7 @@ function apiResponse(overrides = {}) {
       apparent_temperature: Array.from({ length: 48 }, (_, i) => 9 + (i % 24) * 0.5),
       precipitation: Array.from({ length: 48 }, (_, i) => (i % 24 === 19 ? 3.2 : 0)),
       precipitation_probability: Array.from({ length: 48 }, (_, i) => (i % 24 === 19 ? 80 : 5)),
+      windgusts_10m: Array.from({ length: 48 }, (_, i) => (i % 24 === 16 ? 62 : 12)),
     },
     utc_offset_seconds: 7200,
   };
@@ -153,18 +154,29 @@ test('une heure porte tout ce dont la courbe a besoin', () => {
     feelsLike: 18.5,
     precipitationMm: 3.2,
     precipitationProbability: 80,
+    windGustsKmh: 12,
   });
+});
+
+test('les rafales sont relevées heure par heure', () => {
+  // Sans elles, on peut dire qu'il va souffler mais jamais quand.
+  const [jour] = normalizeForecast(apiResponse());
+
+  assert.equal(jour.hours[16].windGustsKmh, 62);
+  assert.equal(jour.hours[17].windGustsKmh, 12);
 });
 
 test('les valeurs horaires manquantes deviennent neutres, jamais null', () => {
   const payload = apiResponse();
   payload.hourly.precipitation_probability = Array(48).fill(null);
   payload.hourly.apparent_temperature = Array(48).fill(null);
+  payload.hourly.windgusts_10m = Array(48).fill(null);
 
   const [jour] = normalizeForecast(payload);
 
   for (const h of jour.hours) {
     assert.equal(h.precipitationProbability, 0);
+    assert.equal(h.windGustsKmh, 0);
     // Sans ressenti, on retombe sur la température réelle plutôt que sur zéro,
     // qui ferait plonger la courbe à la verticale.
     assert.equal(h.feelsLike, h.temp);

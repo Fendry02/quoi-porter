@@ -9,6 +9,8 @@
  * quand tombe l'averse.
  */
 
+import { relevantHours } from './hours.js';
+
 /** Repère normalisé du tracé. Le SVG s'y adapte par son viewBox. */
 export const VIEW = { width: 100, height: 34 };
 
@@ -18,24 +20,8 @@ const RAIN_BAND = 11;
 /** Marge haute, pour que le pic ne touche pas le bord. */
 const TOP_PAD = 3;
 
-/** Heure de départ pour un jour qui n'est pas aujourd'hui. */
-const DEFAULT_START_HOUR = 8;
-
 /** En dessous, une courbe ne décrit plus rien. */
 const MIN_POINTS = 3;
-
-const MINUTES_PER_DAY = 24 * 60;
-
-/** Date locale au lieu, au format ISO court, pour un instant donné. */
-function placeDate(at, utcOffsetSeconds) {
-  return new Date(at.getTime() + utcOffsetSeconds * 1000).toISOString().slice(0, 10);
-}
-
-/** Heure locale au lieu, de 0 à 23. */
-function placeHour(at, utcOffsetSeconds) {
-  const minutes = Math.floor(at.getTime() / 60000) + utcOffsetSeconds / 60;
-  return Math.floor((((minutes % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY) / 60);
-}
 
 const round = (n) => Math.round(n * 100) / 100;
 
@@ -45,14 +31,9 @@ const round = (n) => Math.round(n * 100) / 100;
  * @returns {object|null} la géométrie du tracé, ou null s'il n'y a rien à montrer
  */
 export function buildTimeline(weather, at) {
-  const offset = weather.utcOffsetSeconds ?? 0;
-
-  // Aujourd'hui, on part de l'heure qu'il est : montrer une matinée déjà
-  // passée n'aide personne. Les autres jours partent du matin.
-  const estAujourdhui = weather.date === placeDate(at, offset);
-  const debut = estAujourdhui ? placeHour(at, offset) : DEFAULT_START_HOUR;
-
-  const heures = (weather.hours ?? []).filter((h) => h.hour >= debut);
+  // La fenêtre vient de hours.js, partagée avec les phrases : le tracé et le
+  // texte doivent parler du même intervalle.
+  const heures = relevantHours(weather, at);
   if (heures.length < MIN_POINTS) return null;
 
   const ressentis = heures.map((h) => h.feelsLike);

@@ -6,7 +6,7 @@
  *   wear     la tenue, entière — c'est la réponse à la question de la page ;
  *   carry    ce qu'on emporte en plus ;
  *   weather  pourquoi, en une phrase ;
- *   notes    les points d'attention.
+ *   notes    les points d'attention, chacun avec son horaire.
  *
  * La tenue passe devant parce que c'est ce qu'on est venu chercher. Une version
  * précédente la noyait au milieu d'une phrase météo et en taisait la moitié
@@ -18,22 +18,28 @@
  * l'autre. La tenue, elle, ne varie jamais — c'est un fait, pas une tournure.
  */
 
+import { relevantHours, spanOf, peakOf, phraseSpan, phraseHour } from './hours.js';
+
 /** Espace insécable, pour ne pas séparer le nombre de son unité en fin de ligne. */
 const NBSP = ' ';
 
 /**
  * Accroches par palier de ressenti, du plus chaud au plus froid.
  * `min` est la borne inférieure incluse.
+ *
+ * Aucune ne nomme le jour : la même phrase sert pour aujourd'hui et pour
+ * demain, et le titre au-dessus dit déjà lequel. « Ça va taper aujourd'hui »
+ * sous un titre DEMAIN se contredirait.
  */
 const OPENERS = [
-  { min: 30, variants: ['Ça va taper aujourd’hui', 'Grosse chaleur en vue', 'Journée caniculaire'] },
-  { min: 25, variants: ['Il va faire bien chaud', 'Belle chaleur aujourd’hui', 'Ça va être chaud'] },
-  { min: 20, variants: ['Journée douce', 'Il va faire bon', 'Temps agréable aujourd’hui'] },
+  { min: 30, variants: ['Ça va taper', 'Grosse chaleur en vue', 'Journée caniculaire'] },
+  { min: 25, variants: ['Il va faire bien chaud', 'Belle chaleur', 'Ça va être chaud'] },
+  { min: 20, variants: ['Journée douce', 'Il va faire bon', 'Temps agréable'] },
   { min: 15, variants: ['Doux sans plus', 'Température agréable', 'Ni chaud ni froid'] },
-  { min: 10, variants: ['Ça reste frais', 'Un peu frais aujourd’hui', 'Petite fraîcheur'] },
-  { min: 5, variants: ['Il va faire frisquet', 'Frisquet aujourd’hui', 'Ça pique un peu'] },
-  { min: 0, variants: ['Il va faire froid', 'Franchement froid aujourd’hui', 'Le froid s’installe'] },
-  { min: -Infinity, variants: ['Ça va être glacial', 'Il gèle aujourd’hui', 'Froid mordant'] },
+  { min: 10, variants: ['Ça reste frais', 'Un peu frais', 'Petite fraîcheur'] },
+  { min: 5, variants: ['Il va faire frisquet', 'Plutôt frisquet', 'Ça pique un peu'] },
+  { min: 0, variants: ['Il va faire froid', 'Franchement froid', 'Le froid s’installe'] },
+  { min: -Infinity, variants: ['Ça va être glacial', 'Il gèle', 'Froid mordant'] },
 ];
 
 /** Ordre d'affichage des points d'attention. */
@@ -96,17 +102,58 @@ function carrySentence(outfit) {
   return `Avec ${enumerate(items)}.`;
 }
 
-/** Transforme une alerte en phrase. */
-function noteFor(alert) {
-  return alert.hint;
+/**
+ * Quand chaque type d'alerte se produit, dans la fenêtre observée.
+ *
+ * Savoir qu'il va pleuvoir sans savoir quand ne sert à rien : c'est l'heure
+ * qui décide si on sort maintenant ou si on attend.
+ *
+ * Deux absences volontaires. `uv` : Open-Meteo ne donne pas l'indice heure par
+ * heure, et l'inventer serait mentir. `swing` : sa phrase porte déjà ses deux
+ * bornes de température, une troisième indication l'alourdirait.
+ */
+const TIMING = {
+  rain: (hours, window) =>
+    span(hours, window, (h) => h.precipitationProbability >= 40 || h.precipitationMm > 0.2),
+
+  // Le verglas suit les précipitations : c'est le même phénomène.
+  ice: (hours, window) =>
+    span(hours, window, (h) => h.precipitationProbability >= 40 || h.precipitationMm > 0.2),
+
+  wind: (hours, window) => span(hours, window, (h) => h.windGustsKmh >= 40),
+
+  cold: (hours, window) => span(hours, window, (h) => h.feelsLike < 0),
+
+  // Pour la chaleur, un instant plutôt qu'une plage : c'est le pic qu'on évite.
+  heat: (hours) => {
+    const sommet = peakOf(hours, (h) => h.feelsLike);
+    return sommet ? phraseHour(sommet.hour) : null;
+  },
+};
+
+function span(hours, window, predicate) {
+  const plage = spanOf(hours, predicate);
+  return plage ? phraseSpan(plage, window) : null;
+}
+
+/** Transforme une alerte en note datée. */
+function noteFor(alert, hours, window) {
+  const situer = TIMING[alert.kind];
+
+  return {
+    text: alert.hint,
+    when: situer && hours.length > 0 ? situer(hours, window) : null,
+  };
 }
 
 /**
  * @param {object} weather un DayWeather normalisé
  * @param {object} outfit l'Outfit produit par buildOutfit
- * @returns {{wear: string, carry: string|null, weather: string, notes: string[]}}
+ * @param {Date} at l'instant courant, pour ne dater que ce qui reste à venir
+ * @returns {{wear: string, carry: string|null, weather: string,
+ *            notes: {text: string, when: string|null}[]}}
  */
-export function describeDay(weather, outfit) {
+export function describeDay(weather, outfit, at) {
   // On annonce le ressenti pour lequel la tenue a été décidée, sans quoi la
   // phrase contredirait les vêtements listés juste au-dessus.
   // Exception : les journées qui finissent caniculaires, où même le point
@@ -118,6 +165,13 @@ export function describeDay(weather, outfit) {
   const opener = OPENERS.find((o) => pivot >= o.min);
   const variant = opener.variants[variantIndex(weather.date, opener.variants.length)];
 
+  // La même fenêtre que la courbe : le texte et le tracé doivent parler du
+  // même intervalle, sinon l'un annoncerait une averse que l'autre ignore.
+  const hours = relevantHours(weather, at);
+  const window = hours.length > 0
+    ? { from: hours[0].hour, to: hours[hours.length - 1].hour }
+    : null;
+
   return {
     wear: wearSentence(outfit),
     carry: carrySentence(outfit),
@@ -125,6 +179,6 @@ export function describeDay(weather, outfit) {
     notes: outfit.alerts
       .slice()
       .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
-      .map(noteFor),
+      .map((alert) => noteFor(alert, hours, window)),
   };
 }

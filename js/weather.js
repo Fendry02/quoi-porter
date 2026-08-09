@@ -32,6 +32,7 @@ const HOURLY_FIELDS = [
   'apparent_temperature',
   'precipitation',
   'precipitation_probability',
+  'windgusts_10m',
 ];
 
 /** Erreur métier, distincte d'une panne réseau, pour que l'UI puisse les différencier. */
@@ -74,6 +75,7 @@ function hoursByDate(hourly) {
       feelsLike: orDefault(hourly.apparent_temperature?.[i], temp),
       precipitationMm: orDefault(hourly.precipitation?.[i]),
       precipitationProbability: orDefault(hourly.precipitation_probability?.[i]),
+      windGustsKmh: orDefault(hourly.windgusts_10m?.[i]),
     });
   });
 
