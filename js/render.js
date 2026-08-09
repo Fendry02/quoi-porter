@@ -78,21 +78,16 @@ function buildStrip(weather) {
 }
 
 /**
- * La phrase contient « 14 °C ressentis » : on met ce fragment en italique, car
- * c'est le chiffre dont découle toute la recommandation.
+ * La tenue : la réponse à la question de la page, donc l'élément dominant.
+ * Elle passe avant la météo, qui n'en est que la justification.
  */
-function buildPhrase(headline) {
-  const node = element('p', 'day__phrase');
-  const match = headline.match(/(-?\d+\s*°C ressentis)/);
+function buildOutfitBlock(phrasing) {
+  const bloc = element('div', 'day__outfit');
+  bloc.append(element('p', 'day__wear', phrasing.wear));
 
-  if (!match) {
-    node.textContent = headline;
-    return node;
-  }
+  if (phrasing.carry) bloc.append(element('p', 'day__carry', phrasing.carry));
 
-  const [before, after] = headline.split(match[1]);
-  node.append(before, element('em', null, match[1]), after);
-  return node;
+  return bloc;
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -188,7 +183,11 @@ function chartLabel(timeline) {
  * @param {string} label « Aujourd'hui » ou « Demain »
  */
 export function renderDay(article, day, label) {
-  const contenu = [element('p', 'day__label', label), buildPhrase(day.phrasing.headline)];
+  const contenu = [
+    element('p', 'day__label', label),
+    buildOutfitBlock(day.phrasing),
+    element('p', 'day__weather', day.phrasing.weather),
+  ];
 
   if (day.phrasing.notes.length > 0) {
     const list = element('ul', 'day__notes');

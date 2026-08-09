@@ -143,12 +143,22 @@ body {
   opacity: 0.6;
 }
 
-.day__phrase {
+/*
+ * La tenue domine tout le reste : c'est la seule chose que la page a promis de
+ * dire. La météo devient sa légende, pas l'inverse.
+ */
+.day__outfit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.day__wear {
   margin: 0;
-  font-size: clamp(1.75rem, 4.4vw, 3.1rem);
+  font-size: clamp(1.9rem, 4.8vw, 3.4rem);
   font-weight: 300;
   font-variation-settings: 'opsz' 60;
-  line-height: 1.08;
+  line-height: 1.06;
   letter-spacing: -0.02em;
   text-wrap: balance;
   /* Une ombre portée large et très douce : invisible en tant qu'ombre, mais
@@ -156,10 +166,24 @@ body {
   text-shadow: 0 1px 28px color-mix(in srgb, var(--halo) 90%, transparent);
 }
 
-/* Le ressenti en italique : c'est le chiffre dont découle toute la tenue. */
-.day__phrase em {
-  font-style: italic;
+/* Ce qu'on emporte : même registre que la tenue, un cran en dessous. */
+.day__carry {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.6rem);
   font-weight: 300;
+  font-style: italic;
+  line-height: 1.2;
+  opacity: 0.9;
+  text-shadow: 0 1px 24px color-mix(in srgb, var(--halo) 90%, transparent);
+}
+
+
+/* La météo explique la tenue. Elle ne la précède plus. */
+.day__weather {
+  margin: 0;
+  font-size: clamp(1rem, 1.7vw, 1.2rem);
+  line-height: 1.35;
+  opacity: 0.78;
 }
 
 .day__notes {

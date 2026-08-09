@@ -1,19 +1,28 @@
 /**
- * Mise en mots : (DayWeather, Outfit) → { headline, notes }.
+ * Mise en mots : (DayWeather, Outfit) → ce que la page affiche.
  *
- * Module pur. Le ton visé est celui d'un proche qui te prévient avant que tu
- * sortes, pas celui d'un bulletin météo.
+ * Module pur. Il rend quatre choses, dans l'ordre où on les lit :
  *
- * Les variantes de formulation sont choisies de façon déterministe à partir de
- * la date : la page ne change donc pas de phrase d'un rechargement à l'autre,
- * et les tests sont reproductibles.
+ *   wear     la tenue, entière — c'est la réponse à la question de la page ;
+ *   carry    ce qu'on emporte en plus ;
+ *   weather  pourquoi, en une phrase ;
+ *   notes    les points d'attention.
+ *
+ * La tenue passe devant parce que c'est ce qu'on est venu chercher. Une version
+ * précédente la noyait au milieu d'une phrase météo et en taisait la moitié
+ * — « ce qui va de soi » — si bien qu'on ne voyait jamais une tenue, seulement
+ * des fragments. On dit désormais tout, même le jean, même les baskets.
+ *
+ * Les variantes de la phrase météo sont choisies de façon déterministe à partir
+ * de la date : la page ne change pas de formulation d'un rechargement à
+ * l'autre. La tenue, elle, ne varie jamais — c'est un fait, pas une tournure.
  */
 
 /** Espace insécable, pour ne pas séparer le nombre de son unité en fin de ligne. */
-const NBSP = '\u00A0';
+const NBSP = ' ';
 
 /**
- * Accroches par palier de ressenti minimum, du plus chaud au plus froid.
+ * Accroches par palier de ressenti, du plus chaud au plus froid.
  * `min` est la borne inférieure incluse.
  */
 const OPENERS = [
@@ -30,77 +39,14 @@ const OPENERS = [
 /** Ordre d'affichage des points d'attention. */
 const SEVERITY_RANK = { high: 0, medium: 1, low: 2 };
 
-/**
- * Alertes qui changent ce qu'on **emporte**, et méritent donc la phrase
- * principale plutôt qu'une note. Ordre de priorité à gravité égale.
- *
- * `cold` et `heat` en sont volontairement absents : l'accroche dit déjà « Il
- * gèle » ou « Ça va taper », une clause ne ferait que répéter. `swing` aussi,
- * car il parle de couches à ajuster, pas d'objets à prendre.
- *
- * Le vent passe avant la pluie parce que c'est lui qui rend le parapluie
- * inutilisable : le proposer puis le retirer trois lignes plus bas serait absurde.
- */
-const CARRY_KINDS = ['ice', 'wind', 'rain', 'uv'];
-
-/** Variantes de clause, par type d'alerte. */
-const CLAUSES = {
-  ice: () => [
-    'Et des semelles qui accrochent, ça glisse.',
-    'Prends de quoi accrocher au sol, ce sera traître.',
-    'Attention au verglas — des semelles qui tiennent.',
-  ],
-
-  wind: (weather) => {
-    const kmh = `${Math.round(weather.windGustsKmh)}${NBSP}km/h`;
-
-    return weather.windGustsKmh >= 60
-      ? [
-          `Prends une capuche : à ${kmh}, le parapluie ne tiendra pas.`,
-          `Capuche plutôt que parapluie, ça souffle à ${kmh}.`,
-          `À ${kmh} de rafales, oublie le parapluie — capuche.`,
-        ]
-      : [
-          `Et de quoi couper le vent, ça souffle à ${kmh}.`,
-          `Prends un coupe-vent, ça souffle à ${kmh}.`,
-          `Rafales à ${kmh} — prévois de quoi couper le vent.`,
-        ];
-  },
-
-  rain: (weather, outfit) =>
-    outfit.accessories.includes('parapluie')
-      ? [
-          'Mais garde un parapluie, ça va tomber.',
-          'Et prends un parapluie.',
-          'Prends quand même un parapluie.',
-        ]
-      : [
-          'Et de quoi rester au sec.',
-          'Prévois de quoi te protéger de la pluie.',
-          'Et de quoi ne pas finir trempé.',
-        ],
-
-  uv: (weather) => [
-    `Et de la crème solaire, l’UV monte à ${Math.round(weather.uvIndex)}.`,
-    'Pense aux lunettes et à la crème.',
-    'Et de quoi te protéger du soleil.',
-  ],
+/** Articles des choses qu'on emporte, pour que la ligne se lise à voix haute. */
+const ARTICLES = {
+  parapluie: 'un parapluie',
+  gants: 'des gants',
+  bonnet: 'un bonnet',
+  lunettes: 'des lunettes',
+  écharpe: 'une écharpe',
 };
-
-/**
- * L'alerte à faire remonter dans la phrase. Une seule : en promouvoir plusieurs
- * diluerait exactement ce qui fait la force de cette page.
- */
-function pickPromoted(outfit) {
-  const candidates = outfit.alerts.filter((a) => CARRY_KINDS.includes(a.kind));
-  if (candidates.length === 0) return null;
-
-  return candidates.slice().sort(
-    (a, b) =>
-      SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
-      CARRY_KINDS.indexOf(a.kind) - CARRY_KINDS.indexOf(b.kind),
-  )[0];
-}
 
 /**
  * Index de variante dérivé de la date. Déterministe, réparti correctement sur
@@ -122,42 +68,49 @@ function enumerate(items) {
   return `${items.slice(0, -1).join(', ')} et ${items[items.length - 1]}`;
 }
 
-/**
- * Les pièces qui méritent d'être citées. On tait ce qui va de soi — personne
- * n'a besoin qu'on lui rappelle de mettre un jean — pour ne garder que ce qui
- * change d'un jour à l'autre.
- */
-function notableGarments(outfit) {
-  const { top, bottom, outer, feet } = outfit.layers;
-
-  const items = top.filter((piece) => piece !== 't-shirt');
-  if (items.length === 0) items.push('t-shirt');
-
-  if (outer) items.push(outer);
-  if (bottom === 'short') items.push('short');
-  if (feet === 'chaussures adhérentes') items.push('chaussures qui accrochent');
-
-  return items;
+function capitalize(phrase) {
+  return phrase.charAt(0).toUpperCase() + phrase.slice(1);
 }
 
-/** Transforme une alerte en phrase, en tenant compte de ce qui est réellement emporté. */
-function noteFor(alert, outfit) {
-  if (alert.kind === 'rain' && outfit.accessories.includes('parapluie')) {
-    return `${alert.hint} Prends un parapluie.`;
-  }
+/**
+ * La tenue entière, de la tête aux pieds : les couches du haut, le bas, la
+ * couche extérieure, les chaussures.
+ */
+function wearSentence(outfit) {
+  const { top, bottom, outer, feet } = outfit.layers;
+  const pieces = [...top, bottom, outer, feet].filter(Boolean);
+
+  return `${capitalize(enumerate(pieces))}.`;
+}
+
+/**
+ * Ce qu'on emporte en plus, ou null s'il n'y a rien à prendre.
+ *
+ * « Avec » plutôt qu'un « + » : un mot dit sans ambiguïté que ces choses-là se
+ * prennent et ne se portent pas, là où un symbole demandait d'être interprété.
+ */
+function carrySentence(outfit) {
+  if (outfit.accessories.length === 0) return null;
+
+  const items = outfit.accessories.map((a) => ARTICLES[a] ?? a);
+  return `Avec ${enumerate(items)}.`;
+}
+
+/** Transforme une alerte en phrase. */
+function noteFor(alert) {
   return alert.hint;
 }
 
 /**
  * @param {object} weather un DayWeather normalisé
  * @param {object} outfit l'Outfit produit par buildOutfit
- * @returns {{ headline: string, notes: string[] }}
+ * @returns {{wear: string, carry: string|null, weather: string, notes: string[]}}
  */
 export function describeDay(weather, outfit) {
   // On annonce le ressenti pour lequel la tenue a été décidée, sans quoi la
-  // phrase contredirait les vêtements qu'elle recommande.
+  // phrase contredirait les vêtements listés juste au-dessus.
   // Exception : les journées qui finissent caniculaires, où même le point
-  // d'habillage sous-vend la chaleur à venir.
+  // d'habillage sous-vendrait la chaleur à venir.
   const pivot = outfit.alerts.some((a) => a.kind === 'heat')
     ? weather.feelsLikeMax
     : outfit.dressedFor;
@@ -165,21 +118,13 @@ export function describeDay(weather, outfit) {
   const opener = OPENERS.find((o) => pivot >= o.min);
   const variant = opener.variants[variantIndex(weather.date, opener.variants.length)];
 
-  const ressenti = `${Math.round(pivot)}${NBSP}°C ressentis`;
-  const tenue = `${variant}, ${ressenti} — ${enumerate(notableGarments(outfit))}.`;
-
-  // Une alerte remonte dans la phrase quand elle change ce qu'on emporte, et
-  // quitte alors les notes : son information est déjà délivrée.
-  const promue = pickPromoted(outfit);
-  const variantes = promue ? CLAUSES[promue.kind](weather, outfit) : null;
-  const clause = variantes
-    ? variantes[variantIndex(`${weather.date}:${promue.kind}`, variantes.length)]
-    : null;
-
-  const notes = outfit.alerts
-    .filter((alert) => alert !== promue)
-    .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
-    .map((alert) => noteFor(alert, outfit));
-
-  return { headline: clause ? `${tenue} ${clause}` : tenue, notes };
+  return {
+    wear: wearSentence(outfit),
+    carry: carrySentence(outfit),
+    weather: `${variant}, ${Math.round(pivot)}${NBSP}°C ressentis.`,
+    notes: outfit.alerts
+      .slice()
+      .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
+      .map(noteFor),
+  };
 }

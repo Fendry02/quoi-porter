@@ -45,10 +45,14 @@ Des modules purs au centre, trois contrats de données entre eux : `DayWeather`,
 Les modules purs ne touchent ni au réseau ni au DOM : ils sont testés en isolation, et
 réutilisables tels quels par le futur assistant valise.
 
-La phrase principale accueille **une** clause quand quelque chose change ce qu'on emporte —
-parapluie, capuche, semelles qui accrochent. Une seule : en promouvoir plusieurs diluerait
-ce qui fait la brièveté de la page. L'alerte promue quitte alors les notes, pour qu'aucune
-information ne soit dite deux fois.
+**La tenue passe avant tout le reste**, et elle est entière : haut, bas, couche extérieure,
+chaussures, puis ce qu'on emporte. C'est la seule chose que la page a promis de dire, donc
+c'est la première et la plus grande. La météo devient sa légende.
+
+Une version précédente noyait les vêtements au milieu d'une phrase météo et en taisait la
+moitié — « ce qui va de soi » — si bien qu'on ne voyait jamais une tenue, seulement des
+fragments : le moteur décidait « t-shirt, pull, jean, imperméable, baskets » et la page
+affichait « pull et imperméable ». On dit désormais tout, même le jean.
 
 Sous la phrase, une courbe trace le ressenti heure par heure avec la pluie en dessous. Elle
 part de l'heure qu'il est pour aujourd'hui, de 8 h pour demain, et disparaît en fin de
