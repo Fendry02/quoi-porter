@@ -417,3 +417,52 @@ test('buildOutfit ne mute pas la météo qu’on lui passe', () => {
 });
 
 export { calmDay, alertOfKind };
+
+/* ------------------------------------------------- les libellés d'alerte */
+
+test('chaque alerte porte un libellé court', () => {
+  // La frise du déroulé horaire a besoin d'un mot, pas d'une phrase. C'est le
+  // moteur qui sait de quoi il parle : lui seul distingue pluie et neige.
+  const outfit = buildOutfit(
+    calmDay({
+      feelsLikeMin: -2, feelsLikeMax: 14, weatherCode: 73,
+      precipitationProbability: 90, precipitationMm: 8,
+      windGustsKmh: 50, uvIndex: 8,
+    }),
+  );
+
+  assert.ok(outfit.alerts.length >= 4, 'ce cas doit lever plusieurs alertes');
+  for (const alert of outfit.alerts) {
+    assert.equal(typeof alert.label, 'string', `${alert.kind} sans libellé`);
+    // Un mot court, capitalisé, sans ponctuation : « UV » compte aussi.
+    assert.match(alert.label, /^[A-ZÀ-Ý][^.]{1,12}$/, `libellé douteux : ${alert.label}`);
+  }
+});
+
+test('le libellé distingue la pluie de la neige', () => {
+  const pluie = buildOutfit(calmDay({ weatherCode: 63, precipitationProbability: 80, precipitationMm: 5 }));
+  const neige = buildOutfit(calmDay({ feelsLikeMin: -2, weatherCode: 73, precipitationProbability: 80, precipitationMm: 5 }));
+
+  assert.equal(alertOfKind(pluie, 'rain').label, 'Pluie');
+  assert.equal(alertOfKind(neige, 'rain').label, 'Neige');
+});
+
+test('les libellés sont ceux qu’on attend', () => {
+  const attendus = {
+    wind: 'Vent',
+    heat: 'Chaleur',
+    cold: 'Gel',
+    ice: 'Verglas',
+    uv: 'UV',
+    swing: 'Amplitude',
+  };
+
+  const froid = buildOutfit(calmDay({ feelsLikeMin: -3, feelsLikeMax: 12, weatherCode: 73, precipitationProbability: 80, precipitationMm: 5, windGustsKmh: 50 }));
+  const chaud = buildOutfit(calmDay({ feelsLikeMin: 26, feelsLikeMax: 34, uvIndex: 8 }));
+
+  for (const outfit of [froid, chaud]) {
+    for (const alert of outfit.alerts) {
+      if (attendus[alert.kind]) assert.equal(alert.label, attendus[alert.kind], alert.kind);
+    }
+  }
+});

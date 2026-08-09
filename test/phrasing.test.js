@@ -318,3 +318,51 @@ test('aucune accroche ne se dit « aujourd’hui »', () => {
     }
   }
 });
+
+/* ------------------------------------------- la plage, en heures brutes */
+
+test('une note datée porte aussi sa plage en heures', () => {
+  // La frise a besoin des heures elles-mêmes ; « de 16 h à 19 h » ne se
+  // reconvertit pas en coordonnées sans réanalyser du texte.
+  const w = withHours(
+    calmDay({ precipitationProbability: 80, precipitationMm: 6 }),
+    16, 19, { precipitationProbability: 85, precipitationMm: 2 },
+  );
+  const { notes } = describeDay(w, buildOutfit(w), MATIN);
+  const pluie = notes.find((n) => /pleuv|pluie/i.test(n.text));
+
+  assert.deepEqual(pluie.span, { from: 16, to: 19 });
+  assert.equal(pluie.when, 'de 16 h à 19 h', 'les deux restent cohérents');
+});
+
+test('un instant se dit par une plage d’une seule heure', () => {
+  const w = withHours(
+    calmDay({ feelsLikeMin: 22, feelsLikeMax: 34 }),
+    15, 15, { feelsLike: 34 },
+  );
+  const { notes } = describeDay(w, buildOutfit(w), MATIN);
+  const chaleur = notes.find((n) => /chaleur/i.test(n.text));
+
+  assert.deepEqual(chaleur.span, { from: 15, to: 15 });
+});
+
+test('sans horaire, il n’y a pas de plage non plus', () => {
+  const w = calmDay({ feelsLikeMin: 8, feelsLikeMax: 22 });
+  const { notes } = describeDay(w, buildOutfit(w), MATIN);
+  const swing = notes.find((n) => /plus frais/i.test(n.text));
+
+  assert.equal(swing.when, null);
+  assert.equal(swing.span, null);
+});
+
+test('chaque note porte le libellé court de son alerte', () => {
+  const w = withHours(
+    calmDay({ precipitationProbability: 80, precipitationMm: 6, windGustsKmh: 50 }),
+    16, 19, { precipitationProbability: 85, windGustsKmh: 55 },
+  );
+  const { notes } = describeDay(w, buildOutfit(w), MATIN);
+
+  assert.ok(notes.some((n) => n.label === 'Pluie'));
+  assert.ok(notes.some((n) => n.label === 'Vent'));
+  for (const note of notes) assert.equal(typeof note.label, 'string');
+});

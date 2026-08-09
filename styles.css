@@ -615,3 +615,57 @@ body {
   transform: translateX(-50%);
   white-space: nowrap;
 }
+
+/* ------------------------------------------- la frise des événements */
+
+/*
+ * Les notes disent déjà quand les choses arrivent, mais en mots : il faut les
+ * lire une par une pour reconstituer la journée. Posées sur l'axe, à la même
+ * échelle que la courbe, elles se saisissent d'un coup — on voit que la pluie
+ * et le vent se chevauchent, ou que le pic de chaleur tombe avant l'averse.
+ */
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  margin-top: 0.5rem;
+}
+
+.events__row {
+  position: relative;
+  height: 0.95em;
+}
+
+.events__bar {
+  position: absolute;
+  top: 50%;
+  height: 0.34em;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+/* Un instant : une pastille centrée sur son heure, pas un segment. */
+.events__bar--point {
+  width: 0.34em;
+  transform: translate(-50%, -50%);
+}
+
+.events__label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0.6ch;
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.62;
+}
+
+.events__label--before {
+  margin-left: 0;
+  margin-right: 0.6ch;
+}

@@ -61,6 +61,7 @@ function temperatureAlerts(weather) {
   if (weather.feelsLikeMin < 0) {
     alerts.push({
       kind: 'cold',
+      label: 'Gel',
       severity: 'high',
       hint: 'Il gèle — couvre les extrémités, c’est là que ça pique.',
     });
@@ -69,6 +70,7 @@ function temperatureAlerts(weather) {
   if (weather.feelsLikeMax >= 30) {
     alerts.push({
       kind: 'heat',
+      label: 'Chaleur',
       severity: weather.feelsLikeMax >= 35 ? 'high' : 'medium',
       // Pas de moment dans la phrase : c'est la note datée qui le porte, et le
       // répéter ici donnerait « évite le plein soleil l'après-midi — vers 14 h ».
@@ -157,6 +159,9 @@ const MODIFIERS = [
       },
       {
         kind: 'rain',
+        // Le moteur est le seul à savoir distinguer les deux : la frise et les
+        // phrases se contentent de reprendre son mot.
+        label: snowing ? 'Neige' : 'Pluie',
         severity: heavy ? 'high' : 'medium',
         hint: snowing
           ? heavy
@@ -185,6 +190,7 @@ const MODIFIERS = [
       { ...outfit, layers: { ...outfit.layers, outer } },
       {
         kind: 'wind',
+        label: 'Vent',
         severity: 'medium',
         hint: `Ça souffle, ${Math.round(weather.windGustsKmh)}${NBSP}km/h en rafales.`,
       },
@@ -223,6 +229,7 @@ const MODIFIERS = [
     // de juger soi-même s'il faut une couche en plus au départ.
     return withAlert(outfit, {
       kind: 'swing',
+      label: 'Amplitude',
       severity: 'medium',
       hint: `${Math.round(weather.feelsLikeMin)}${NBSP}°C au plus frais, ${Math.round(weather.feelsLikeMax)}${NBSP}°C au plus chaud — prévois de pouvoir ajuster.`,
     });
@@ -235,6 +242,7 @@ const MODIFIERS = [
       { ...outfit, accessories: [...outfit.accessories, 'lunettes'] },
       {
         kind: 'uv',
+        label: 'UV',
         severity: weather.uvIndex >= 8 ? 'high' : 'medium',
         hint: `UV à ${Math.round(weather.uvIndex)} — crème solaire si tu restes dehors.`,
       },
@@ -248,6 +256,7 @@ const MODIFIERS = [
       { ...outfit, layers: { ...outfit.layers, feet: 'chaussures adhérentes' } },
       {
         kind: 'ice',
+        label: 'Verglas',
         severity: 'high',
         hint: 'Sol potentiellement glissant, prends des semelles qui accrochent.',
       },

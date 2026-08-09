@@ -128,7 +128,7 @@ function svg(tag, attributes) {
  * @param {object} timeline la géométrie produite par buildTimeline
  * @param {string} label texte alternatif pour qui n'accède pas au graphique
  */
-function buildChart(timeline, label) {
+function buildChart(timeline, label, events) {
   const { width, height } = VIEW;
   const figure = element('figure', 'chart');
 
@@ -162,7 +162,74 @@ function buildChart(timeline, label) {
   }
 
   figure.append(plot, axis);
+
+  const frise = buildEvents(timeline, events);
+  if (frise) figure.append(frise);
+
   return figure;
+}
+
+/**
+ * La frise des événements, posée sous les repères horaires et sur la même
+ * échelle que la courbe.
+ *
+ * Les notes disent déjà quand les choses arrivent, mais en mots : il faut les
+ * lire une par une pour reconstituer la journée. Le même contenu posé sur l'axe
+ * se saisit d'un coup — on voit que la pluie et le vent se chevauchent, ou que
+ * le pic de chaleur tombe avant l'averse.
+ *
+ * @param {object} timeline la géométrie du tracé, pour convertir les heures en x
+ * @param {object[]} events les notes qui portent une plage
+ */
+function buildEvents(timeline, events) {
+  if (events.length === 0) return null;
+
+  // On reprend les abscisses exactes des points du tracé plutôt que de refaire
+  // le calcul : une heure y est un point, pas une case, et un barème parallèle
+  // décalerait la frise de quelques pixels par rapport aux repères horaires.
+  const xParHeure = new Map(timeline.points.map((p) => [p.hour, p.x]));
+  const premiere = timeline.points[0].hour;
+  const derniere = timeline.points[timeline.points.length - 1].hour;
+
+  const bloc = element('div', 'events');
+
+  for (const event of events) {
+    const debut = Math.max(event.span.from, premiere);
+    const fin = Math.min(event.span.to, derniere);
+    if (fin < debut) continue;
+
+    const x1 = xParHeure.get(debut);
+    const x2 = xParHeure.get(fin);
+    if (x1 === undefined || x2 === undefined) continue;
+
+    const ligne = element('div', 'events__row');
+    const barre = element('span', 'events__bar');
+    const instant = x2 - x1 < 0.5;
+
+    barre.style.left = `${x1}%`;
+    if (instant) {
+      // Un événement d'un instant n'a pas de largeur : on le centre sur son
+      // heure plutôt que de lui en inventer une.
+      barre.classList.add('events__bar--point');
+    } else {
+      barre.style.width = `${x2 - x1}%`;
+    }
+
+    const libelle = element('span', 'events__label', event.label);
+    // Collé au bord droit, un libellé posé après la barre déborderait : on le
+    // rabat de l'autre côté.
+    if (x2 > 76) {
+      libelle.style.right = `${100 - x1}%`;
+      libelle.classList.add('events__label--before');
+    } else {
+      libelle.style.left = `${x2}%`;
+    }
+
+    ligne.append(barre, libelle);
+    bloc.append(ligne);
+  }
+
+  return bloc.children.length > 0 ? bloc : null;
 }
 
 /**
@@ -214,7 +281,12 @@ export function renderDay(article, day, label) {
 
   // Absent en fin de soirée, quand il reste trop peu d'heures pour tracer
   // autre chose qu'un segment trompeur.
-  if (day.timeline) contenu.push(buildChart(day.timeline, chartLabel(day.timeline)));
+  if (day.timeline) {
+    // Seules les notes qui savent quand elles arrivent peuvent se poser sur
+    // l'axe ; les autres — l'amplitude, l'UV — restent du texte.
+    const events = day.phrasing.notes.filter((n) => n.span);
+    contenu.push(buildChart(day.timeline, chartLabel(day.timeline), events));
+  }
 
   contenu.push(buildStrip(day.weather));
   article.replaceChildren(...contenu);

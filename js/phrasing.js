@@ -6,7 +6,8 @@
  *   wear     la tenue, entière — c'est la réponse à la question de la page ;
  *   carry    ce qu'on emporte en plus ;
  *   weather  pourquoi, en une phrase ;
- *   notes    les points d'attention, chacun avec son horaire.
+ *   notes    les points d'attention, chacun avec son libellé, son horaire en
+ *            mots, et la plage d'heures brute dont la frise a besoin.
  *
  * La tenue passe devant parce que c'est ce qu'on est venu chercher. Une version
  * précédente la noyait au milieu d'une phrase météo et en taisait la moitié
@@ -112,37 +113,42 @@ function carrySentence(outfit) {
  * heure, et l'inventer serait mentir. `swing` : sa phrase porte déjà ses deux
  * bornes de température, une troisième indication l'alourdirait.
  */
+const tombe = (h) => h.precipitationProbability >= 40 || h.precipitationMm > 0.2;
+
 const TIMING = {
-  rain: (hours, window) =>
-    span(hours, window, (h) => h.precipitationProbability >= 40 || h.precipitationMm > 0.2),
+  rain: (hours) => spanOf(hours, tombe),
 
   // Le verglas suit les précipitations : c'est le même phénomène.
-  ice: (hours, window) =>
-    span(hours, window, (h) => h.precipitationProbability >= 40 || h.precipitationMm > 0.2),
+  ice: (hours) => spanOf(hours, tombe),
 
-  wind: (hours, window) => span(hours, window, (h) => h.windGustsKmh >= 40),
+  wind: (hours) => spanOf(hours, (h) => h.windGustsKmh >= 40),
 
-  cold: (hours, window) => span(hours, window, (h) => h.feelsLike < 0),
+  cold: (hours) => spanOf(hours, (h) => h.feelsLike < 0),
 
   // Pour la chaleur, un instant plutôt qu'une plage : c'est le pic qu'on évite.
+  // Il prend malgré tout la forme d'une plage d'une heure, pour que la frise
+  // n'ait qu'un seul cas à dessiner.
   heat: (hours) => {
     const sommet = peakOf(hours, (h) => h.feelsLike);
-    return sommet ? phraseHour(sommet.hour) : null;
+    return sommet ? { from: sommet.hour, to: sommet.hour } : null;
   },
 };
 
-function span(hours, window, predicate) {
-  const plage = spanOf(hours, predicate);
-  return plage ? phraseSpan(plage, window) : null;
-}
-
-/** Transforme une alerte en note datée. */
+/**
+ * Transforme une alerte en note.
+ *
+ * `span` porte les heures brutes, `when` les mêmes heures en mots. Les deux
+ * viennent du même calcul : la frise et le texte ne peuvent pas diverger.
+ */
 function noteFor(alert, hours, window) {
   const situer = TIMING[alert.kind];
+  const span = situer && hours.length > 0 ? situer(hours) : null;
 
   return {
+    label: alert.label,
     text: alert.hint,
-    when: situer && hours.length > 0 ? situer(hours, window) : null,
+    span,
+    when: span ? phraseSpan(span, window) : null,
   };
 }
 
@@ -151,7 +157,8 @@ function noteFor(alert, hours, window) {
  * @param {object} outfit l'Outfit produit par buildOutfit
  * @param {Date} at l'instant courant, pour ne dater que ce qui reste à venir
  * @returns {{wear: string, carry: string|null, weather: string,
- *            notes: {text: string, when: string|null}[]}}
+ *            notes: {label: string, text: string, when: string|null,
+ *                    span: {from: number, to: number}|null}[]}}
  */
 export function describeDay(weather, outfit, at) {
   // On annonce le ressenti pour lequel la tenue a été décidée, sans quoi la

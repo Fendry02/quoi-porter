@@ -59,6 +59,10 @@ affichait « pull et imperméable ». On dit désormais tout, même le jean.
 gauche et on sait quand les choses arrivent sans lire les phrases. « Il va bien pleuvoir »
 sans horaire n'est qu'une demi-information.
 
+Les mêmes événements sont **posés sur l'axe** sous la courbe, à l'échelle exacte du tracé —
+une barre par événement, une pastille pour un instant. Lire les notes une par une oblige à
+reconstituer la journée de tête ; la frise la donne d'un coup, avec les chevauchements.
+
 Sous la phrase, une courbe trace le ressenti heure par heure avec la pluie en dessous. Elle
 part de l'heure qu'il est pour aujourd'hui, de 8 h pour demain, et disparaît en fin de
 soirée quand il reste trop peu d'heures pour tracer autre chose qu'un segment trompeur.
