@@ -3,8 +3,15 @@
 Une page qui répond à une seule question, le matin, en quatre secondes : que faut-il porter
 aujourd'hui, et demain ?
 
+![La page à Paris : « T-shirt, short et baskets. Avec des lunettes. »](media/apercu-beau-temps.jpg)
+
 Le fond est une scène 3D dont le ciel reprend la météo réelle et l'heure du lieu. On fait
 défiler, et la scène se métamorphose sous le doigt pour passer d'aujourd'hui à demain.
+
+![La même page à Bergen : il pleut sur la scène comme dans la prévision](media/apercu-pluie.jpg)
+
+Aucune dépendance, aucune étape de build, aucune clé d'API, aucun backend : du HTML, du CSS
+et des modules ES, plus three.js chargé depuis un CDN. 202 tests sur `node --test`.
 
 ## Lancer
 
