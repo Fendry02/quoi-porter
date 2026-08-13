@@ -1,41 +1,68 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Qu'est-ce que je mets ?",
+    "slug": "weather-clothes",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "icon": "./assets/images/weather-clothes-icon.png",
+    "scheme": "weather-clothes",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "bundleIdentifier": "com.weatherclothes.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Ta position permet de proposer une tenue adaptée à la météo locale."
+      }
     },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
+      "package": "com.weatherclothes.app",
+      "predictiveBackGestureEnabled": true
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/weather-clothes-icon.png"
     },
     "plugins": [
       "expo-router",
+      "expo-location",
+      "expo-sqlite",
+      [
+        "expo-widgets",
+        {
+          "widgets": [
+            {
+              "name": "TodayOutfit",
+              "displayName": "Tenue du jour",
+              "description": "La tenue conseillée et les points d’attention pour aujourd’hui.",
+              "supportedFamilies": ["systemSmall", "systemMedium"]
+            }
+          ]
+        }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "TodayOutfit",
+              "label": "Tenue du jour",
+              "description": "La tenue conseillée et les points d’attention pour aujourd’hui.",
+              "minWidth": "250dp",
+              "minHeight": "120dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#DCEEFF",
+          "image": "./assets/images/weather-clothes-icon.png",
           "imageWidth": 76
         }
-      ],
-      "expo-sqlite",
-      "expo-widgets",
-      "react-native-android-widget"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
