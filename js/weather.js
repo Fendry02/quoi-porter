@@ -214,13 +214,13 @@ async function getJson(url) {
   return response.json();
 }
 
-function forecastUrl(latitude, longitude, models) {
+export function forecastUrl(latitude, longitude, models, forecastDays = 2) {
   const url = new URL(FORECAST_URL);
   url.searchParams.set('latitude', latitude);
   url.searchParams.set('longitude', longitude);
   url.searchParams.set('daily', DAILY_FIELDS.join(','));
   url.searchParams.set('hourly', HOURLY_FIELDS.join(','));
-  url.searchParams.set('forecast_days', '2');
+  url.searchParams.set('forecast_days', String(forecastDays));
   url.searchParams.set('timezone', 'auto');
   if (models.length > 0) url.searchParams.set('models', models.join(','));
 
@@ -228,7 +228,7 @@ function forecastUrl(latitude, longitude, models) {
 }
 
 /**
- * Prévision pour aujourd'hui et demain, agrégée sur cinq centres de prévision.
+ * Prévision agrégée sur cinq centres de prévision.
  *
  * En cas d'échec de la requête d'ensemble — un modèle retiré, une variable
  * renommée, une limite atteinte — on retombe sur une requête simple. Perdre la
@@ -236,14 +236,15 @@ function forecastUrl(latitude, longitude, models) {
  *
  * @param {number} latitude
  * @param {number} longitude
- * @returns {Promise<object[]>} deux DayWeather
+ * @param {number} [forecastDays=2] nombre de jours à demander
+ * @returns {Promise<object[]>} un DayWeather par jour demandé
  */
-export async function fetchForecast(latitude, longitude) {
+export async function fetchForecast(latitude, longitude, forecastDays = 2) {
   try {
-    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, MODELS)));
+    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, MODELS, forecastDays)));
   } catch (error) {
     console.warn('Ensemble multi-modèles indisponible, repli sur une source unique.', error);
-    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, [])));
+    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, [], forecastDays)));
   }
 }
 
