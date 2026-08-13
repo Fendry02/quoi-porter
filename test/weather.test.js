@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { normalizeForecast, MODELS } from '../js/weather.js';
+import { normalizeForecast, MODELS, forecastUrl } from '../js/weather.js';
 
 /** Réponse Open-Meteo telle qu'elle arrive, pour deux jours. */
 function apiResponse(overrides = {}) {
@@ -35,6 +35,13 @@ function apiResponse(overrides = {}) {
     utc_offset_seconds: 7200,
   };
 }
+
+test('la requête accepte une semaine complète pour l’application mobile', () => {
+  const url = forecastUrl(48.8566, 2.3522, MODELS, 7);
+
+  assert.equal(url.searchParams.get('forecast_days'), '7');
+  assert.equal(url.searchParams.get('timezone'), 'auto');
+});
 
 test('normalise un jour par entrée du tableau time', () => {
   const jours = normalizeForecast(apiResponse());
