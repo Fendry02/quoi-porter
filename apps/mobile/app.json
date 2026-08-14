@@ -11,12 +11,17 @@
       "appleTeamId": "K2LUP8LQQY",
       "bundleIdentifier": "com.weatherclothes.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Ta position permet de proposer une tenue adaptée à la météo locale."
+        "NSLocationWhenInUseUsageDescription": "Ta position permet de proposer une tenue adaptée à la météo locale.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.weatherclothes.app",
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -34,7 +39,10 @@
               "name": "TodayOutfit",
               "displayName": "Tenue du jour",
               "description": "La tenue conseillée et les points d’attention pour aujourd’hui.",
-              "supportedFamilies": ["systemSmall", "systemMedium"]
+              "supportedFamilies": [
+                "systemSmall",
+                "systemMedium"
+              ]
             }
           ]
         }
@@ -68,6 +76,30 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ExpoWidgetsTarget",
+                  "bundleIdentifier": "com.weatherclothes.app.ExpoWidgetsTarget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.weatherclothes.app"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "9f4e9bce-af7e-42df-b88a-a5fe54ab1dfb"
+      }
+    },
+    "owner": "fendry"
   }
 }
