@@ -22,7 +22,11 @@ La bonne tenue, chaque matin
 **Catégorie principale** : Météo
 **Catégorie secondaire** : Style de vie
 
-**Droits d'auteur** : `2026 <ton nom ou raison sociale>`
+**Droits d'auteur** : `2026 Benoit Bruynbroeck`
+
+> Apple n'attend ni le symbole © ni la mention « tous droits réservés » : il les ajoute
+> lui-même. Ce champ nomme qui détient les droits, il est distinct du nom de développeur
+> affiché sur la fiche, qui vient du compte Apple Developer.
 
 ---
 
@@ -164,7 +168,7 @@ L'app ne s'adresse pas spécifiquement aux enfants et ne collecte sciemment
 aucune donnée les concernant.
 
 Contact
-<ton adresse de support>
+contact@bbenoit.fr
 
 Dernière mise à jour : 14 août 2026
 ```
@@ -234,7 +238,8 @@ fausse : un coup d'œil humain reste nécessaire.
 
 ```bash
 cd apps/mobile
-ASC_ISSUER_ID=<l-uuid> node scripts/upload-screenshots.mjs ../../docs/store/captures
+ASC_ISSUER_ID=$(cat ~/.appstoreconnect/issuer-id) \
+  node scripts/upload-screenshots.mjs ../../docs/store/captures
 ```
 
 Ajouter `--replace` pour vider le jeu existant avant d'envoyer.
@@ -250,7 +255,7 @@ Ce qu'il lui faut :
 | Clé privée | `~/.appstoreconnect/private_keys/AuthKey_C9Y9B2RFPK.p8` — en place, `chmod 600` |
 | Key ID | `C9Y9B2RFPK` (défaut du script) |
 | App ID | `6801611537` (défaut du script) |
-| Issuer ID | **à récupérer** — l'UUID en haut de ASC > Utilisateurs et accès > Intégrations |
+| Issuer ID | en place dans `~/.appstoreconnect/issuer-id`, `chmod 600` — hors du repo exprès |
 
 Le `.p8` traînait à la racine du repo sans règle d'ignore : il est déplacé, et `*.p8` est
 maintenant dans `.gitignore`. Il n'a jamais été committé — vérifié sur tout l'historique.
