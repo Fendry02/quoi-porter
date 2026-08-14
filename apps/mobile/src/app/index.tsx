@@ -26,12 +26,17 @@ import {
   TextInput,
   View,
   useColorScheme,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { conditionLabel, weatherPalette } from '@/core/weather';
 import { useForecast } from '@/hooks/use-forecast';
+import { useNow } from '@/hooks/use-now';
 import type { ForecastDay, Place } from '@/lib/types';
+import { SkyBackground } from '@/sky/SkyBackground';
+import { useSkyMood } from '@/sky/use-sky-mood';
+import { DayTimeline } from '@/timeline/DayTimeline';
 
 function shortDayLabel(label: string) {
   return label === 'Aujourd’hui' ? 'Auj.' : label.replace('.', '');
@@ -39,6 +44,26 @@ function shortDayLabel(label: string) {
 
 function dayTemperature(day: ForecastDay) {
   return `${Math.round(day.weather.feelsLikeMin)}–${Math.round(day.weather.feelsLikeMax)}°`;
+}
+
+/**
+ * De quoi garder le texte lisible sur un ciel vivant.
+ *
+ * L'encre vient déjà de `js/sky.js` et suit l'ambiance, mais elle a été pensée
+ * pour un dégradé calme : un ciel de midi très clair, ou une nuit d'orage
+ * traversée d'éclairs, demandent un voile en plus. Sombre sous une encre
+ * claire, clair sous une encre sombre.
+ */
+function veilsFor(ink: string) {
+  const n = parseInt(ink.replace('#', ''), 16);
+  const luminance =
+    (((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114) / 255;
+  const inkIsLight = luminance > 0.5;
+
+  return {
+    scrim: inkIsLight ? 'rgba(6,10,20,0.30)' : 'rgba(255,255,255,0.24)',
+    surface: inkIsLight ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.46)',
+  };
 }
 
 function Metric({ label, value, muted, ink }: { label: string; value: string; muted: string; ink: string }) {
@@ -142,11 +167,20 @@ export default function HomeScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [finderOpen, setFinderOpen] = useState(false);
 
+  const { width, height } = useWindowDimensions();
+
   const selected = useMemo(
     () => days.find((day) => day.id === selectedId) ?? days[0],
     [days, selectedId],
   );
   const palette = weatherPalette(selected?.weather.weatherCode ?? 2, scheme);
+
+  const at = useNow();
+  const sky = useSkyMood(selected?.weather, at);
+
+  const ink = sky.ink;
+  const muted = `${ink}B0`;
+  const veils = useMemo(() => veilsFor(ink), [ink]);
 
   if (loading && !selected) {
     return (
@@ -184,106 +218,123 @@ export default function HomeScreen() {
     );
   }
 
+  // L'écran moins ses marges (20 de chaque côté), moins celles de la carte (16).
+  const chartWidth = width - 72;
+
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: palette.background }]}>
-      <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
-      <ScrollView
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl onRefresh={() => refresh()} refreshing={loading} tintColor={palette.ink} />}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.topline}>
-          <Pressable
-            accessibilityHint="Ouvre la recherche de ville"
-            accessibilityRole="button"
-            onPress={() => setFinderOpen(true)}
-            style={({ pressed }) => [styles.placeButton, pressed && styles.pressed]}>
-            <Text numberOfLines={1} style={[styles.placeName, { color: palette.ink }]}>
-              {place?.name ?? 'Ma position'}
-            </Text>
-            <Text style={[styles.changePlace, { color: palette.muted }]}>Changer</Text>
-          </Pressable>
-          <Text style={[styles.condition, { color: palette.muted }]}>{conditionLabel(selected.weather.weatherCode)}</Text>
-        </View>
+    <View style={styles.root}>
+      <SkyBackground height={height} state={sky} width={width} />
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: veils.scrim }]} />
 
-        <View style={styles.hero}>
-          <Text accessibilityRole="header" style={[styles.dayTitle, { color: palette.ink }]}>
-            {selected.label}
-          </Text>
-          <Text style={[styles.outfit, { color: palette.ink }]}>{selected.phrasing.wear}</Text>
-          {selected.phrasing.carry ? (
-            <Text style={[styles.carry, { color: palette.ink }]}>{selected.phrasing.carry}</Text>
-          ) : null}
-          <Text style={[styles.weatherSentence, { color: palette.muted }]}>{selected.phrasing.weather}</Text>
-        </View>
-
+      <SafeAreaView style={styles.screen}>
+        <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
         <ScrollView
-          accessibilityLabel="Les sept jours à venir"
-          contentContainerStyle={styles.dayRail}
-          horizontal
-          showsHorizontalScrollIndicator={false}>
-          {days.map((day) => {
-            const active = day.id === selected.id;
-            return (
-              <Pressable
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                key={day.id}
-                onPress={() => setSelectedId(day.id)}
-                style={({ pressed }) => [
-                  styles.dayTab,
-                  { backgroundColor: active ? palette.ink : palette.surface },
-                  pressed && styles.pressed,
-                ]}>
-                <Text style={[styles.dayTabLabel, { color: active ? palette.background : palette.muted }]}>
-                  {shortDayLabel(day.label)}
-                </Text>
-                <Text style={[styles.dayTabTemp, { color: active ? palette.background : palette.ink }]}>
-                  {dayTemperature(day)}
-                </Text>
-              </Pressable>
-            );
-          })}
+          contentContainerStyle={styles.content}
+          refreshControl={<RefreshControl onRefresh={() => refresh()} refreshing={loading} tintColor={ink} />}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.topline}>
+            <Pressable
+              accessibilityHint="Ouvre la recherche de ville"
+              accessibilityRole="button"
+              onPress={() => setFinderOpen(true)}
+              style={({ pressed }) => [styles.placeButton, pressed && styles.pressed]}>
+              <Text numberOfLines={1} style={[styles.placeName, { color: ink }]}>
+                {place?.name ?? 'Ma position'}
+              </Text>
+              <Text style={[styles.changePlace, { color: muted }]}>Changer</Text>
+            </Pressable>
+            <Text style={[styles.condition, { color: muted }]}>{conditionLabel(selected.weather.weatherCode)}</Text>
+          </View>
+
+          <View style={styles.hero}>
+            <Text accessibilityRole="header" style={[styles.dayTitle, { color: ink }]}>
+              {selected.label}
+            </Text>
+            <Text style={[styles.outfit, { color: ink }]}>{selected.phrasing.wear}</Text>
+            {selected.phrasing.carry ? (
+              <Text style={[styles.carry, { color: ink }]}>{selected.phrasing.carry}</Text>
+            ) : null}
+            <Text style={[styles.weatherSentence, { color: muted }]}>{selected.phrasing.weather}</Text>
+          </View>
+
+          <ScrollView
+            accessibilityLabel="Les sept jours à venir"
+            contentContainerStyle={styles.dayRail}
+            horizontal
+            showsHorizontalScrollIndicator={false}>
+            {days.map((day) => {
+              const active = day.id === selected.id;
+              return (
+                <Pressable
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  key={day.id}
+                  onPress={() => setSelectedId(day.id)}
+                  style={({ pressed }) => [
+                    styles.dayTab,
+                    { backgroundColor: active ? ink : veils.surface },
+                    pressed && styles.pressed,
+                  ]}>
+                  <Text style={[styles.dayTabLabel, { color: active ? sky.horizon : muted }]}>
+                    {shortDayLabel(day.label)}
+                  </Text>
+                  <Text style={[styles.dayTabTemp, { color: active ? sky.horizon : ink }]}>
+                    {dayTemperature(day)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {/* Le déroulé avant les mesures : savoir quand tombe l'averse compte
+              plus que son cumul de la journée. */}
+          <View style={[styles.details, { backgroundColor: veils.surface }]}>
+            <DayTimeline at={at} ink={ink} weather={selected.weather} width={chartWidth} />
+          </View>
+
+          <View style={[styles.details, styles.stacked, { backgroundColor: veils.surface }]}>
+            <View style={styles.metricGrid}>
+              <Metric ink={ink} label="Ressenti" muted={muted} value={dayTemperature(selected)} />
+              <Metric ink={ink} label="Pluie" muted={muted} value={`${Math.round(selected.weather.precipitationProbability)} %`} />
+              <Metric ink={ink} label="Rafales" muted={muted} value={`${Math.round(selected.weather.windGustsKmh)} km/h`} />
+              <Metric ink={ink} label="UV" muted={muted} value={String(Math.round(selected.weather.uvIndex))} />
+            </View>
+          </View>
+
+          {selected.phrasing.notes.length > 0 ? (
+            <View style={styles.notes}>
+              {selected.phrasing.notes.map((note) => (
+                <View key={`${note.label}-${note.text}`} style={[styles.note, { borderColor: muted + '40' }]}>
+                  <Text style={[styles.noteLabel, { color: ink }]}>{note.label}</Text>
+                  <Text style={[styles.noteText, { color: muted }]}>
+                    {note.when ? `${note.when} · ` : ''}
+                    {note.text}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {selected.phrasing.confidence ? (
+            <Text style={[styles.confidence, { color: muted }]}>{selected.phrasing.confidence}</Text>
+          ) : null}
         </ScrollView>
+      </SafeAreaView>
 
-        <View style={[styles.details, { backgroundColor: palette.surface }]}>
-          <View style={styles.metricGrid}>
-            <Metric ink={palette.ink} label="Ressenti" muted={palette.muted} value={dayTemperature(selected)} />
-            <Metric ink={palette.ink} label="Pluie" muted={palette.muted} value={`${Math.round(selected.weather.precipitationProbability)} %`} />
-            <Metric ink={palette.ink} label="Rafales" muted={palette.muted} value={`${Math.round(selected.weather.windGustsKmh)} km/h`} />
-            <Metric ink={palette.ink} label="UV" muted={palette.muted} value={String(Math.round(selected.weather.uvIndex))} />
-          </View>
-        </View>
-
-        {selected.phrasing.notes.length > 0 ? (
-          <View style={styles.notes}>
-            {selected.phrasing.notes.map((note) => (
-              <View key={`${note.label}-${note.text}`} style={[styles.note, { borderColor: palette.muted + '40' }]}>
-                <Text style={[styles.noteLabel, { color: palette.ink }]}>{note.label}</Text>
-                <Text style={[styles.noteText, { color: palette.muted }]}>
-                  {note.when ? `${note.when} · ` : ''}
-                  {note.text}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {selected.phrasing.confidence ? (
-          <Text style={[styles.confidence, { color: palette.muted }]}>{selected.phrasing.confidence}</Text>
-        ) : null}
-      </ScrollView>
       <PlacePicker
         onClose={() => setFinderOpen(false)}
         onSelect={selectPlace}
         searchPlaces={searchPlaces}
         visible={finderOpen}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  root: { flex: 1 },
+  // Transparent : c'est le ciel qui est derrière, pas un aplat.
+  screen: { backgroundColor: 'transparent', flex: 1 },
   content: { paddingHorizontal: 20, paddingBottom: 48 },
   loadingScreen: { alignItems: 'center', flex: 1, gap: 16, justifyContent: 'center', padding: 24 },
   loadingText: { fontSize: 17 },
@@ -309,6 +360,7 @@ const styles = StyleSheet.create({
   dayTabLabel: { fontSize: 13, fontWeight: '600' },
   dayTabTemp: { fontSize: 14, fontVariant: ['tabular-nums'], fontWeight: '700', marginTop: 6 },
   details: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 6 },
+  stacked: { marginTop: 12 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   metric: { minHeight: 72, justifyContent: 'center', width: '50%' },
   metricLabel: { fontSize: 13, fontWeight: '600' },
