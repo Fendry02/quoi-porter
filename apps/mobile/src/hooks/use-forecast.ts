@@ -5,7 +5,7 @@ import { buildWeek, fetchForecast, geocode, widgetSnapshot } from '@/core/weathe
 // Metro sélectionne storage.native.ts ou storage.web.ts selon la plateforme.
 // eslint-disable-next-line import/no-unresolved
 import { getStoredPlace, storePlace, storeWidgetData } from '@/lib/storage';
-import type { ForecastDay, Place, WidgetData } from '@/lib/types';
+import type { ForecastDay, Place, Profile, WidgetData } from '@/lib/types';
 import { updateTodayWidget } from '@/widgets/widget-sync';
 
 type ForecastState = {
@@ -30,7 +30,8 @@ async function locatePlace(): Promise<Place> {
   return { name: name || 'Ma position', latitude: position.coords.latitude, longitude: position.coords.longitude };
 }
 
-export function useForecast() {
+/** @param profile le vestiaire choisi, `null` tant qu'on ne l'a pas demandé */
+export function useForecast(profile: Profile | null) {
   const [state, setState] = useState<ForecastState>(INITIAL_STATE);
 
   const refresh = useCallback(async (nextPlace?: Place) => {
@@ -40,8 +41,10 @@ export function useForecast() {
       const place = nextPlace ?? (await getStoredPlace()) ?? (await locatePlace());
       await storePlace(place);
 
-      const forecast = await fetchForecast(place.latitude, place.longitude, 7);
-      const days = buildWeek(forecast, new Date()) as ForecastDay[];
+      // La veille en plus : on s'habille par comparaison avec ce qu'on a vécu
+      // hier, pas d'après un chiffre absolu.
+      const forecast = await fetchForecast(place.latitude, place.longitude, 7, 1);
+      const days = buildWeek(forecast, new Date(), profile) as ForecastDay[];
       const data = widgetSnapshot(days[0], place.name) as WidgetData;
 
       await storeWidgetData(data);
@@ -51,11 +54,14 @@ export function useForecast() {
       const message = error instanceof Error ? error.message : 'La météo est indisponible pour le moment.';
       setState((current) => ({ ...current, loading: false, error: message }));
     }
-  }, []);
+  }, [profile]);
 
+  // On attend de savoir dans quel vestiaire puiser : partir avant ferait une
+  // requête pour rien, puis une seconde dès la réponse donnée.
   useEffect(() => {
+    if (profile === null) return;
     void Promise.resolve().then(() => refresh());
-  }, [refresh]);
+  }, [refresh, profile]);
 
   const selectPlace = useCallback(
     async (place: Place) => {

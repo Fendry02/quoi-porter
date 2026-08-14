@@ -4,6 +4,15 @@ export type Place = {
   longitude: number;
 };
 
+/**
+ * Le vestiaire dans lequel piocher les propositions.
+ *
+ * `neutre` n'est pas une absence de réponse : c'est le choix de qui préfère
+ * ne pas le dire, et il vaut la garde-robe commune. L'absence, elle, se note
+ * `null` et rouvre la question.
+ */
+export type Profile = 'femme' | 'homme' | 'neutre';
+
 export type WidgetData = {
   place: string;
   outfit: string;
@@ -39,7 +48,18 @@ export type DayWeather = {
   windMaxKmh: number;
   windGustsKmh: number;
   uvIndex: number;
+  /** L'avis majoritaire des modèles, pas celui du premier à répondre. */
   weatherCode: number;
+  /**
+   * Le modèle isolé qui annonce nettement pire. Nul quand tout le monde
+   * s'accorde : il n'y a alors aucune réserve à formuler.
+   */
+  conditionDissent: {
+    family: 'cloud' | 'rain' | 'snow' | 'storm';
+    code: number;
+    count: number;
+    total: number;
+  } | null;
   sunrise: string;
   sunset: string;
   /** Sans lui, lever et coucher seraient comparés à l'heure du téléphone. */
@@ -48,16 +68,38 @@ export type DayWeather = {
   feelsLikeSpread: number | null;
 };
 
+/**
+ * La tenue, couche par couche.
+ *
+ * L'app en a besoin en pièces détachées et non seulement en phrase : une liste
+ * à virgules se lit, un empilement se voit.
+ */
+export type Outfit = {
+  dressedFor: number;
+  layers: {
+    top: string[];
+    bottom: string;
+    outer: string | null;
+    feet: string;
+  };
+  accessories: string[];
+};
+
 export type ForecastDay = {
   id: string;
   isToday: boolean;
   label: string;
   weather: DayWeather;
+  outfit: Outfit;
   phrasing: {
     wear: string;
     carry: string | null;
     weather: string;
     confidence: string | null;
+    /** L'écart avec la veille. Nul les autres jours, et sans veille connue. */
+    versusYesterday: string | null;
+    /** Ce que la tenue du jour ne couvre pas. Nul quand elle tient jusqu'au soir. */
+    later: string | null;
     notes: { label: string; text: string; when: string | null }[];
   };
 };

@@ -30,12 +30,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { conditionLabel, weatherPalette } from '@/core/weather';
+import { weatherPalette } from '@/core/weather';
 import { useForecast } from '@/hooks/use-forecast';
+import { useProfile } from '@/hooks/use-profile';
 import { useNow } from '@/hooks/use-now';
 import type { ForecastDay, Place } from '@/lib/types';
 import { SkyBackground } from '@/sky/SkyBackground';
 import { useSkyMood } from '@/sky/use-sky-mood';
+import { WardrobeQuestion, wardrobeLabel } from '@/profile/WardrobeQuestion';
 import { DayTimeline } from '@/timeline/DayTimeline';
 
 function shortDayLabel(label: string) {
@@ -44,6 +46,16 @@ function shortDayLabel(label: string) {
 
 function dayTemperature(day: ForecastDay) {
   return `${Math.round(day.weather.feelsLikeMin)}–${Math.round(day.weather.feelsLikeMax)}°`;
+}
+
+/** Les pièces portées, dans l'ordre où on les enfile. */
+function garmentsOf(day: ForecastDay) {
+  const { top, bottom, outer, feet } = day.outfit.layers;
+  return [...top, bottom, outer, feet].filter(Boolean) as string[];
+}
+
+function capitalize(word: string) {
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 /**
@@ -64,15 +76,6 @@ function veilsFor(ink: string) {
     scrim: inkIsLight ? 'rgba(6,10,20,0.30)' : 'rgba(255,255,255,0.24)',
     surface: inkIsLight ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.46)',
   };
-}
-
-function Metric({ label, value, muted, ink }: { label: string; value: string; muted: string; ink: string }) {
-  return (
-    <View style={styles.metric}>
-      <Text style={[styles.metricLabel, { color: muted }]}>{label}</Text>
-      <Text style={[styles.metricValue, { color: ink }]}>{value}</Text>
-    </View>
-  );
 }
 
 function PlacePicker({
@@ -163,9 +166,11 @@ function PlacePicker({
 
 export default function HomeScreen() {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const { days, place, loading, error, refresh, selectPlace, searchPlaces } = useForecast();
+  const { profile, loading: profileLoading, choose } = useProfile();
+  const { days, place, loading, error, refresh, selectPlace, searchPlaces } = useForecast(profile);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [finderOpen, setFinderOpen] = useState(false);
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
 
   const { width, height } = useWindowDimensions();
 
@@ -181,6 +186,16 @@ export default function HomeScreen() {
   const ink = sky.ink;
   const muted = `${ink}B0`;
   const veils = useMemo(() => veilsFor(ink), [ink]);
+
+  // Rien tant qu'on lit le disque : afficher la question puis la retirer
+  // aussitôt la ferait clignoter à chaque ouverture.
+  if (profileLoading) {
+    return <View style={[styles.loadingScreen, { backgroundColor: palette.background }]} />;
+  }
+
+  if (profile === null) {
+    return <WardrobeQuestion onChoose={choose} />;
+  }
 
   if (loading && !selected) {
     return (
@@ -243,17 +258,55 @@ export default function HomeScreen() {
               </Text>
               <Text style={[styles.changePlace, { color: muted }]}>Changer</Text>
             </Pressable>
-            <Text style={[styles.condition, { color: muted }]}>{conditionLabel(selected.weather.weatherCode)}</Text>
+            <Pressable
+              accessibilityHint="Change le vestiaire dans lequel les tenues sont choisies"
+              accessibilityRole="button"
+              hitSlop={10}
+              onPress={() => setWardrobeOpen(true)}
+              style={({ pressed }) => [styles.wardrobeButton, pressed && styles.pressed]}>
+              <Text style={[styles.wardrobeLabel, { color: muted }]}>{wardrobeLabel(profile)}</Text>
+            </Pressable>
           </View>
 
           <View style={styles.hero}>
-            <Text accessibilityRole="header" style={[styles.dayTitle, { color: ink }]}>
-              {selected.label}
-            </Text>
-            <Text style={[styles.outfit, { color: ink }]}>{selected.phrasing.wear}</Text>
+            <View style={styles.dayLine}>
+              <Text accessibilityRole="header" style={[styles.dayTitle, { color: ink }]}>
+                {selected.label}
+              </Text>
+              {selected.phrasing.versusYesterday ? (
+                <Text style={[styles.versus, { color: muted }]}>
+                  {selected.phrasing.versusYesterday}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Un vêtement par ligne, dans l'ordre où on s'habille : l'œil
+                saisit un empilement, il lit une liste à virgules. La phrase
+                entière reste la seule chose que VoiceOver énonce — la découpe
+                est visuelle, pas sémantique. */}
+            <View
+              accessible
+              accessibilityLabel={selected.phrasing.wear}
+              style={styles.garments}>
+              {garmentsOf(selected).map((piece) => (
+                <Text key={piece} style={[styles.garment, { color: ink }]}>
+                  {capitalize(piece)}
+                </Text>
+              ))}
+            </View>
+
             {selected.phrasing.carry ? (
               <Text style={[styles.carry, { color: ink }]}>{selected.phrasing.carry}</Text>
             ) : null}
+
+            {/* Ce que la tenue du jour ne couvre pas : la seule ligne sur
+                laquelle on peut encore agir en partant. */}
+            {selected.phrasing.later ? (
+              <Text style={[styles.later, { color: ink, borderColor: `${ink}30` }]}>
+                {selected.phrasing.later}
+              </Text>
+            ) : null}
+
             <Text style={[styles.weatherSentence, { color: muted }]}>{selected.phrasing.weather}</Text>
           </View>
 
@@ -292,14 +345,10 @@ export default function HomeScreen() {
             <DayTimeline at={at} ink={ink} weather={selected.weather} width={chartWidth} />
           </View>
 
-          <View style={[styles.details, styles.stacked, { backgroundColor: veils.surface }]}>
-            <View style={styles.metricGrid}>
-              <Metric ink={ink} label="Ressenti" muted={muted} value={dayTemperature(selected)} />
-              <Metric ink={ink} label="Pluie" muted={muted} value={`${Math.round(selected.weather.precipitationProbability)} %`} />
-              <Metric ink={ink} label="Rafales" muted={muted} value={`${Math.round(selected.weather.windGustsKmh)} km/h`} />
-              <Metric ink={ink} label="UV" muted={muted} value={String(Math.round(selected.weather.uvIndex))} />
-            </View>
-          </View>
+          {/* La grille Ressenti / Pluie / Rafales / UV a été retirée : la courbe
+              porte déjà la température et la pluie, et les alertes portent le
+              reste quand il compte. Le produit répond à une question, il ne
+              tient pas un tableau de bord. */}
 
           {selected.phrasing.notes.length > 0 ? (
             <View style={styles.notes}>
@@ -327,6 +376,21 @@ export default function HomeScreen() {
         searchPlaces={searchPlaces}
         visible={finderOpen}
       />
+
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setWardrobeOpen(false)}
+        presentationStyle="pageSheet"
+        visible={wardrobeOpen}>
+        <WardrobeQuestion
+          current={profile}
+          onChoose={(next) => {
+            void choose(next);
+            setWardrobeOpen(false);
+          }}
+          onClose={() => setWardrobeOpen(false)}
+        />
+      </Modal>
     </View>
   );
 }
@@ -349,11 +413,30 @@ const styles = StyleSheet.create({
   placeButton: { flex: 1, minHeight: 44, paddingRight: 12 },
   placeName: { fontSize: 17, fontWeight: '700', lineHeight: 21 },
   changePlace: { fontSize: 14, marginTop: 2 },
-  condition: { fontSize: 14, lineHeight: 21, maxWidth: 130, textAlign: 'right' },
+  wardrobeButton: { justifyContent: 'center', minHeight: 44, paddingLeft: 12 },
+  wardrobeLabel: { fontSize: 14, fontWeight: '600', textAlign: 'right' },
   hero: { paddingBottom: 28, paddingTop: 38 },
-  dayTitle: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3, marginBottom: 12 },
-  outfit: { fontFamily: Platform.select({ ios: 'ui-serif', default: 'serif' }), fontSize: 37, letterSpacing: -1.1, lineHeight: 42 },
-  carry: { fontFamily: Platform.select({ ios: 'ui-serif', default: 'serif' }), fontSize: 21, fontStyle: 'italic', lineHeight: 27, marginTop: 10 },
+  dayLine: { alignItems: 'baseline', flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
+  dayTitle: { fontSize: 22, fontWeight: '700', letterSpacing: -0.3 },
+  versus: { fontSize: 15, lineHeight: 21 },
+  garments: { gap: 2 },
+  // Un cran sous l'ancienne phrase : quatre lignes prennent plus de hauteur
+  // qu'un paragraphe, et le premier écran doit tenir la tenue entière.
+  garment: {
+    fontFamily: Platform.select({ ios: 'ui-serif', default: 'serif' }),
+    fontSize: 31,
+    letterSpacing: -0.9,
+    lineHeight: 38,
+  },
+  carry: { fontFamily: Platform.select({ ios: 'ui-serif', default: 'serif' }), fontSize: 21, fontStyle: 'italic', lineHeight: 27, marginTop: 14 },
+  later: {
+    borderLeftWidth: 2,
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 23,
+    marginTop: 18,
+    paddingLeft: 12,
+  },
   weatherSentence: { fontSize: 16, lineHeight: 23, marginTop: 18 },
   dayRail: { gap: 8, paddingBottom: 28, paddingRight: 20 },
   dayTab: { borderRadius: 14, minHeight: 70, minWidth: 78, paddingHorizontal: 12, paddingVertical: 11 },
@@ -361,10 +444,6 @@ const styles = StyleSheet.create({
   dayTabTemp: { fontSize: 14, fontVariant: ['tabular-nums'], fontWeight: '700', marginTop: 6 },
   details: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 6 },
   stacked: { marginTop: 12 },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  metric: { minHeight: 72, justifyContent: 'center', width: '50%' },
-  metricLabel: { fontSize: 13, fontWeight: '600' },
-  metricValue: { fontSize: 20, fontVariant: ['tabular-nums'], fontWeight: '700', marginTop: 4 },
   notes: { marginTop: 30 },
   note: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
   noteLabel: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
