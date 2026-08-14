@@ -13,7 +13,7 @@
  * et testable, `fetchForecast` n'est qu'une enveloppe autour de fetch.
  */
 
-import { median, spread, acrossModels } from './ensemble.js';
+import { median, pool, spread, acrossModels } from './ensemble.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -96,10 +96,18 @@ function modelsPresent(payload) {
 /**
  * Le bloc horaire arrive à plat, deux jours bout à bout. On le regroupe par
  * date pour que chaque jour reparte avec les siennes.
+ *
+ * On en profite pour relever le sommet de probabilité de chaque journée : c'est
+ * lui, et non le maximum quotidien de chaque modèle, qui donnera le chiffre du
+ * jour. Voir `normalizeForecast`.
+ *
+ * @returns {{parJour: Map, pics: Map}} les heures par date, et leur sommet de
+ *   probabilité — absent tant qu'aucune heure n'a publié la sienne.
  */
 function hoursByDate(hourly, models) {
   const parJour = new Map();
-  if (!hourly || !Array.isArray(hourly.time)) return parJour;
+  const pics = new Map();
+  if (!hourly || !Array.isArray(hourly.time)) return { parJour, pics };
 
   const consensus = (variable, i) => median(acrossModels(hourly, variable, models, i));
 
@@ -107,6 +115,10 @@ function hoursByDate(hourly, models) {
     const date = stamp.slice(0, 10);
     const temp = orDefault(consensus('temperature_2m', i));
     const enveloppe = spread(acrossModels(hourly, 'apparent_temperature', models, i));
+
+    // Une probabilité se met en commun, elle ne se médiane pas : la médiane
+    // ferait taire le seul modèle qui attend une averse à cette heure-là.
+    const probabilite = pool(acrossModels(hourly, 'precipitation_probability', models, i));
 
     if (!parJour.has(date)) parJour.set(date, []);
     parJour.get(date).push({
@@ -116,16 +128,20 @@ function hoursByDate(hourly, models) {
       // zéro, qui ferait plonger la courbe à la verticale.
       feelsLike: orDefault(consensus('apparent_temperature', i), temp),
       precipitationMm: orDefault(consensus('precipitation', i)),
-      precipitationProbability: orDefault(consensus('precipitation_probability', i)),
+      precipitationProbability: orDefault(probabilite),
       windGustsKmh: orDefault(consensus('windgusts_10m', i)),
       // L'enveloppe entre modèles, pour la bande d'incertitude du tracé. Nulle
       // en mono-modèle : il n'y a alors aucun désaccord à représenter.
       feelsLikeLow: enveloppe?.low ?? null,
       feelsLikeHigh: enveloppe?.high ?? null,
     });
+
+    if (probabilite !== null) {
+      pics.set(date, Math.max(pics.get(date) ?? 0, probabilite));
+    }
   });
 
-  return parJour;
+  return { parJour, pics };
 }
 
 /**
@@ -149,8 +165,9 @@ export function normalizeForecast(payload) {
   }
 
   const models = modelsPresent(payload);
-  const heures = hoursByDate(payload.hourly, models);
+  const { parJour: heures, pics } = hoursByDate(payload.hourly, models);
   const consensus = (variable, i) => median(acrossModels(daily, variable, models, i));
+  const misEnCommun = (variable, i) => pool(acrossModels(daily, variable, models, i));
 
   return daily.time.map((date, i) => {
     // Les rafales sont parfois absentes ; le vent moyen vaut mieux que zéro,
@@ -172,7 +189,17 @@ export function normalizeForecast(payload) {
         orDefault(consensus('temperature_2m_max', i)),
       ),
       precipitationMm: orDefault(consensus('precipitation_sum', i)),
-      precipitationProbability: orDefault(consensus('precipitation_probability_max', i)),
+      // Le sommet de la courbe horaire, pas la médiane des maxima de chaque
+      // modèle. Les centres s'accordent souvent sur la pluie sans s'accorder
+      // sur l'heure : la médiane des maxima annonçait alors 42 % quand aucune
+      // heure du tracé ne dépassait 10 %. Le chiffre du jour est désormais, par
+      // construction, l'heure la plus arrosée de la journée.
+      //
+      // Sans probabilité horaire publiée, on retombe sur le quotidien : le
+      // dériver d'heures absentes ferait passer une journée pluvieuse pour sèche.
+      precipitationProbability: orDefault(
+        pics.get(date) ?? misEnCommun('precipitation_probability_max', i),
+      ),
       windMaxKmh,
       windGustsKmh,
       uvIndex: orDefault(consensus('uv_index_max', i)),

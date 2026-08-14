@@ -38,6 +38,27 @@ export function median(values) {
 }
 
 /**
+ * La mise en commun de probabilités, en ignorant les modèles muets.
+ *
+ * La médiane convient aux grandeurs — un modèle aberrant à 40 °C ne doit pas
+ * emporter la journée. Sur une probabilité elle est trompeuse : elle donne la
+ * voix au modèle du milieu et fait taire les autres. Trois modèles annonçant
+ * 0 %, 90 % et 0 % à la même heure ont une médiane de 0 %, alors qu'un centre
+ * sur trois y attend une averse.
+ *
+ * La moyenne est la façon usuelle de combiner des prévisions probabilistes :
+ * chaque modèle pèse sa part, et une minorité reste audible.
+ *
+ * @returns {number|null} null si aucun modèle n'a répondu
+ */
+export function pool(values) {
+  const tries = chiffres(values);
+  if (tries.length === 0) return null;
+
+  return tries.reduce((somme, v) => somme + v, 0) / tries.length;
+}
+
+/**
  * Les deux extrêmes entre modèles.
  *
  * @returns {{low: number, high: number}|null} null en dessous de deux modèles,

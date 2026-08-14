@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { median, spread, acrossModels } from '../js/ensemble.js';
+import { median, pool, spread, acrossModels } from '../js/ensemble.js';
 
 /* ------------------------------------------------------------ la médiane */
 
@@ -26,6 +26,28 @@ test('sans aucune valeur, la médiane est nulle', () => {
 
 test('une seule valeur reste elle-même', () => {
   assert.equal(median([42, null]), 42);
+});
+
+/* --------------------------------------------------- la mise en commun */
+
+test('la mise en commun est la moyenne des modèles qui parlent', () => {
+  assert.equal(pool([0, 42, 3]), 15);
+});
+
+test('la mise en commun ignore les modèles muets, comme la médiane', () => {
+  assert.equal(pool([60, null, 40, undefined]), 50);
+});
+
+test('sans aucune valeur, la mise en commun est nulle', () => {
+  assert.equal(pool([]), null);
+  assert.equal(pool([null, undefined]), null);
+});
+
+test('la mise en commun garde la voix d’une minorité que la médiane efface', () => {
+  // Le cœur du problème : un seul modèle annonçant 90 % de pluie à cette heure
+  // est réduit au silence par la médiane, alors qu'il décrit un vrai risque.
+  assert.equal(median([0, 90, 0]), 0);
+  assert.equal(pool([0, 90, 0]), 30);
 });
 
 /* ------------------------------------------------------------ l’étendue */

@@ -13,7 +13,9 @@ function apiResponse(overrides = {}) {
       apparent_temperature_min: [10.2, 6.7],
       apparent_temperature_max: [23.1, 18.0],
       precipitation_sum: [0, 4.6],
-      precipitation_probability_max: [5, 80],
+      // Le maximum quotidien s'accorde avec le pic horaire ci-dessous : une
+      // journée dont une heure est à 80 % ne peut pas plafonner à 5 %.
+      precipitation_probability_max: [80, 80],
       windspeed_10m_max: [11.2, 28.4],
       windgusts_10m_max: [19.8, 52.1],
       uv_index_max: [6.2, 3.1],
@@ -64,7 +66,7 @@ test('reporte chaque champ de l’API sur le bon champ du contrat', () => {
     feelsLikeMin: 10.2,
     feelsLikeMax: 23.1,
     precipitationMm: 0,
-    precipitationProbability: 5,
+    precipitationProbability: 80,
     windMaxKmh: 11.2,
     windGustsKmh: 19.8,
     uvIndex: 6.2,
@@ -106,15 +108,19 @@ test('lever et coucher du soleil manquants : repli sur des heures conventionnell
 
 test('une valeur nulle devient une valeur neutre, jamais null', () => {
   // Open-Meteo omet parfois la probabilité de précipitation ou l'UV.
-  const jours = normalizeForecast(
-    apiResponse({
-      precipitation_probability_max: [null, null],
-      uv_index_max: [null, null],
-      windgusts_10m_max: [null, null],
-      windspeed_10m_max: [null, null],
-      precipitation_sum: [null, null],
-    }),
-  );
+  const payload = apiResponse({
+    precipitation_probability_max: [null, null],
+    uv_index_max: [null, null],
+    windgusts_10m_max: [null, null],
+    windspeed_10m_max: [null, null],
+    precipitation_sum: [null, null],
+  });
+
+  // Muet aussi côté horaire : le jour dérive son chiffre du tracé quand il
+  // existe, et ce test-ci porte sur le cas où plus rien ne répond.
+  payload.hourly.precipitation_probability = Array(48).fill(null);
+
+  const jours = normalizeForecast(payload);
 
   for (const jour of jours) {
     for (const [champ, valeur] of Object.entries(jour)) {
@@ -240,6 +246,51 @@ test('un modèle muet sur une variable n’entre pas dans sa médiane', () => {
     [MODELS[1]]: { daily: { precipitation_probability_max: 90 } },
     [MODELS[2]]: { daily: { precipitation_probability_max: null } },
     [MODELS[3]]: { daily: { precipitation_probability_max: null } },
+  });
+
+  assert.equal(normalizeForecast(payload)[0].precipitationProbability, 85);
+});
+
+test('la probabilité du jour est le sommet de la courbe horaire', () => {
+  // Les modèles s'accordent sur la pluie mais pas sur l'heure : l'un l'attend
+  // à 5 h, l'autre à 20 h. La médiane des maxima quotidiens annoncerait 60 %,
+  // quand la courbe horaire ne montrerait de pluie nulle part — c'est
+  // exactement la contradiction qu'on supprime.
+  // Trois modèles, pour que la médiane et la moyenne divergent vraiment : à
+  // deux, la médiane vaut déjà la moyenne et ne prouverait rien.
+  const heures = Array.from({ length: 24 }, (_, h) => `2026-08-07T${String(h).padStart(2, '0')}:00`);
+  const creux = (pic) => Array.from({ length: 24 }, (_, h) => (h === pic ? 60 : 0));
+
+  const payload = {
+    daily: {
+      time: ['2026-08-07'],
+      [`precipitation_probability_max_${MODELS[0]}`]: [60],
+      [`precipitation_probability_max_${MODELS[1]}`]: [60],
+      [`precipitation_probability_max_${MODELS[2]}`]: [0],
+    },
+    hourly: {
+      time: heures,
+      [`precipitation_probability_${MODELS[0]}`]: creux(20),
+      [`precipitation_probability_${MODELS[1]}`]: creux(5),
+      [`precipitation_probability_${MODELS[2]}`]: creux(-1), // sec toute la journée
+    },
+    utc_offset_seconds: 0,
+  };
+
+  const [jour] = normalizeForecast(payload);
+
+  // Mise en commun de [0, 60, 0] : 20 %. La médiane, elle, dirait 0.
+  assert.equal(jour.hours[5].precipitationProbability, 20);
+  assert.equal(jour.hours[20].precipitationProbability, 20);
+  assert.equal(jour.precipitationProbability, 20, 'le jour ne dépasse pas son heure la plus arrosée');
+});
+
+test('sans probabilité horaire publiée, le jour retombe sur les maxima quotidiens', () => {
+  // Certains modèles ne publient que le quotidien. Dériver le jour d'heures
+  // absentes ferait passer une journée pluvieuse pour sèche.
+  const payload = ensembleResponse({
+    [MODELS[0]]: { daily: { precipitation_probability_max: 80 } },
+    [MODELS[1]]: { daily: { precipitation_probability_max: 90 } },
   });
 
   assert.equal(normalizeForecast(payload)[0].precipitationProbability, 85);
