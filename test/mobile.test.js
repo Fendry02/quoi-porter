@@ -151,3 +151,13 @@ test('l’avis pour la suite de la journée ne concerne qu’aujourd’hui', () 
   assert.match(semaine[0].phrasing.later, /soir/i);
   assert.equal(semaine[1].phrasing.later, null);
 });
+
+test('aujourd’hui introuvable ne fait jamais retomber sur la veille', () => {
+  // Depuis qu'on demande la veille pour comparer, le tableau commence par elle.
+  // Un repli sur l'entrée 0 afficherait donc la tenue d'hier — y compris dans
+  // le widget, qui lit le premier jour de la semaine.
+  const semaine = buildWeek([day(-1), day(1)], MORNING);
+
+  assert.equal(semaine[0].id, '2026-08-11', 'on avance, on ne recule pas');
+  assert.equal(semaine[0].isToday, true, 'le jour le plus proche tient lieu d’aujourd’hui');
+});

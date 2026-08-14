@@ -71,13 +71,16 @@ export function buildWeek(forecast, at = new Date(), profile = null) {
  *
  * On le cherche par sa date au lieu de supposer l'entrée 0 : dès qu'on demande
  * la veille pour comparer, elle arrive en tête et la supposition devient fausse.
- * Introuvable — prévision périmée, fuseau qui décale — on repart du premier jour
- * connu, car un écran vide serait pire qu'un jour décalé.
+ *
+ * Le premier jour qui n'est pas passé, et non le premier tout court : si la date
+ * du jour manque — prévision périmée, fuseau qui décale — reculer sur la veille
+ * ferait conseiller la tenue d'hier, jusque dans le widget. Les dates ISO se
+ * comparent comme des chaînes, et la prévision est déjà dans l'ordre.
  */
 function todayIndex(forecast, at) {
   const offset = forecast[0]?.utcOffsetSeconds ?? 0;
   const aujourdhui = placeDate(at, offset);
-  const trouve = forecast.findIndex((weather) => weather.date === aujourdhui);
+  const trouve = forecast.findIndex((weather) => weather.date >= aujourdhui);
 
   return trouve >= 0 ? trouve : 0;
 }
