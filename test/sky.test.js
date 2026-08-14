@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { moodFor, sunHeightAt, blendMoods } from '../js/sky.js';
+import { moodFor, sunHeightAt, blendMoods, moonPhaseOn } from '../js/sky.js';
 
 /** Journée type : lever 6 h 30, coucher 21 h 30, heure locale. */
 function day(overrides = {}) {
@@ -63,7 +63,7 @@ test('le mood expose toutes les clés du contrat', () => {
   for (const cle of [
     'name', 'zenith', 'horizon', 'ink', 'sunHeight', 'sunIntensity',
     'starDensity', 'cloudCover', 'cloudSpeed', 'turbulence', 'haze',
-    'precipitation', 'lightning',
+    'wind', 'heat', 'moonPhase', 'precipitation', 'lightning',
   ]) {
     assert.ok(cle in mood, `clé manquante : ${cle}`);
   }
@@ -83,7 +83,10 @@ test('les grandeurs normalisées restent entre 0 et 1', () => {
 
   for (const [w, quand] of cas) {
     const m = moodFor(w, quand);
-    for (const cle of ['sunIntensity', 'starDensity', 'cloudCover', 'cloudSpeed', 'turbulence', 'haze']) {
+    for (const cle of [
+      'sunIntensity', 'starDensity', 'cloudCover', 'cloudSpeed', 'turbulence',
+      'haze', 'wind', 'heat', 'moonPhase',
+    ]) {
       assert.ok(m[cle] >= 0 && m[cle] <= 1, `${cle} hors bornes : ${m[cle]}`);
     }
     assert.ok(m.precipitation.intensity >= 0 && m.precipitation.intensity <= 1);
@@ -204,6 +207,48 @@ test('le brouillard produit beaucoup de brume', () => {
   assert.ok(brouillard.haze > degage.haze + 0.4);
 });
 
+/* -------------------------------------------- le vent, la chaleur, la lune */
+
+test('les traînées de vent ne sortent qu’au-delà d’une brise', () => {
+  // Un vent qu'on ne sent pas ne doit pas se voir à l'écran.
+  assert.equal(moodFor(day({ windGustsKmh: 20 }), at('12:00')).wind, 0);
+  assert.ok(moodFor(day({ windGustsKmh: 45 }), at('12:00')).wind > 0);
+  assert.equal(moodFor(day({ windGustsKmh: 120 }), at('12:00')).wind, 1);
+});
+
+test('la chaleur se lit sur le maximum ressenti', () => {
+  assert.equal(moodFor(day({ feelsLikeMax: 24 }), at('12:00')).heat, 0);
+  assert.ok(moodFor(day({ feelsLikeMax: 32 }), at('12:00')).heat > 0);
+  assert.equal(moodFor(day({ feelsLikeMax: 40 }), at('12:00')).heat, 1);
+});
+
+test('la phase lunaire part de la nouvelle lune de référence', () => {
+  // Le 6 janvier 2000 à 18 h 14 UTC. À minuit ce jour-là il reste dix-huit
+  // heures de cycle, soit une phase juste en dessous de 1 : dans les deux cas
+  // on est au ras de la nouvelle lune.
+  const phase = moonPhaseOn('2000-01-06');
+
+  assert.ok(Math.min(phase, 1 - phase) < 0.03, `phase inattendue : ${phase}`);
+});
+
+test('la phase lunaire boucle sur le mois synodique', () => {
+  // Deux dates espacées de 295,3 jours, soit dix cycles pleins.
+  assert.ok(Math.abs(moonPhaseOn('2026-01-01') - moonPhaseOn('2026-10-23')) < 0.02);
+});
+
+test('la phase lunaire reste dans [0, 1) même avant l’époque de référence', () => {
+  for (const date of ['1969-07-20', '1999-12-31', '2026-08-07', '2098-03-14']) {
+    const phase = moonPhaseOn(date);
+    assert.ok(phase >= 0 && phase < 1, `${date} donne ${phase}`);
+  }
+});
+
+test('une date illisible ne propage pas de NaN jusqu’aux uniformes', () => {
+  // Un seul uniforme non fini suffit à faire disparaître tout le ciel.
+  assert.ok(Number.isFinite(moonPhaseOn(undefined)));
+  assert.ok(Number.isFinite(moodFor(day({ date: 'pas une date' }), at('12:00')).moonPhase));
+});
+
 test('moodFor ne mute pas la météo qu’on lui passe', () => {
   const weather = day({ weatherCode: 95, precipitationMm: 12 });
   const copie = structuredClone(weather);
@@ -251,6 +296,16 @@ test('le type de précipitation bascule à mi-parcours plutôt que de se mélang
   assert.equal(blendMoods(sec, neige, 0.3).precipitation.type, null);
   assert.equal(blendMoods(sec, neige, 0.7).precipitation.type, 'snow');
   assert.ok(blendMoods(sec, neige, 0.7).precipitation.intensity < neige.precipitation.intensity);
+});
+
+test('la phase lunaire bascule à mi-parcours plutôt que de traverser le cycle', () => {
+  // Interpoler 0,98 vers 0,01 ferait remonter la lune tout un cycle à l'envers
+  // en une demi-seconde. On prend celle de départ, puis celle d'arrivée.
+  const veille = moodFor(day({ date: '2026-01-18' }), at('02:00'));
+  const lendemain = moodFor(day({ date: '2026-01-19' }), at('02:00'));
+
+  assert.equal(blendMoods(veille, lendemain, 0.3).moonPhase, veille.moonPhase);
+  assert.equal(blendMoods(veille, lendemain, 0.7).moonPhase, lendemain.moonPhase);
 });
 
 test('l’éclair est actif dès que l’un des deux moods orage', () => {

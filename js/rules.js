@@ -39,20 +39,54 @@ export function dressingPoint(weather) {
  * `min` est la borne inférieure incluse du palier.
  */
 const TIERS = [
-  { min: 25, top: ['t-shirt'], bottom: 'short', feet: 'baskets', outer: null },
-  { min: 20, top: ['t-shirt'], bottom: 'pantalon léger', feet: 'baskets', outer: null },
-  { min: 15, top: ['t-shirt', 'chemise'], bottom: 'pantalon', feet: 'baskets', outer: null },
-  { min: 10, top: ['t-shirt', 'pull'], bottom: 'jean', feet: 'baskets', outer: null },
-  { min: 5, top: ['t-shirt', 'pull'], bottom: 'jean', feet: 'baskets', outer: 'veste' },
-  { min: 0, top: ['t-shirt', 'pull'], bottom: 'jean', feet: 'chaussures fermées', outer: 'manteau' },
+  { min: 25, top: ['t-shirt'], bottom: 'short', outer: null },
+  { min: 20, top: ['t-shirt'], bottom: 'pantalon léger', outer: null },
+  { min: 15, top: ['t-shirt', 'chemise'], bottom: 'pantalon', outer: null },
+  { min: 10, top: ['t-shirt', 'pull'], bottom: 'jean', outer: null },
+  { min: 5, top: ['t-shirt', 'pull'], bottom: 'jean', outer: 'veste' },
+  { min: 0, top: ['t-shirt', 'pull'], bottom: 'jean', outer: 'manteau' },
   {
     min: -Infinity,
     top: ['sous-couche thermique', 't-shirt', 'pull'],
     bottom: 'jean',
-    feet: 'chaussures fermées',
     outer: 'manteau',
   },
 ];
+
+/**
+ * Barème des pieds, du plus chaud au plus froid.
+ *
+ * Séparé du barème des vêtements, et c'est le point : les pieds ne suivent pas
+ * les mêmes frontières que le torse. On enfile un pull bien avant de changer de
+ * chaussures, et une averse impose des semelles étanches sans rien changer au
+ * pull. Tant que les deux partageaient un seul tableau, `baskets` couvrait tout
+ * l'espace de 0 à 40 °C et la réponse ne bougeait jamais.
+ *
+ * Ce qui distingue un palier de l'autre est fonctionnel, pas vestimentaire :
+ * la ventilation en haut du barème, la fermeture puis l'isolation en bas.
+ */
+const FEET_TIERS = [
+  { min: 28, feet: 'sandales ou baskets légères' },
+  { min: 22, feet: 'baskets légères' },
+  { min: 8, feet: 'baskets' },
+  { min: 0, feet: 'chaussures fermées' },
+  { min: -Infinity, feet: 'bottines fourrées' },
+];
+
+/**
+ * Point d'habillage au-delà duquel les pieds gagnent à rester à l'air, pluie
+ * comprise : par 30 °C un pied mouillé sèche, un pied enfermé dans du
+ * caoutchouc étanche ne sèche pas.
+ */
+const OPEN_FEET_TEMP = FEET_TIERS[0].min;
+
+/**
+ * @param {number} dressedFor le point d'habillage, en °C ressentis
+ * @returns {string} la chaussure du palier
+ */
+function feetFor(dressedFor) {
+  return FEET_TIERS.find((t) => dressedFor >= t.min).feet;
+}
 
 /** Alertes liées à la seule température, émises par le barème de base. */
 function temperatureAlerts(weather) {
@@ -91,7 +125,7 @@ function baseOutfit(weather) {
       top: [...tier.top],
       bottom: tier.bottom,
       outer: tier.outer,
-      feet: tier.feet,
+      feet: feetFor(dressedFor),
     },
     // Les extrémités, elles, subissent bien le minimum de la journée : gants et
     // bonnet se glissent dans une poche, autant les prendre s'il gèle au réveil.
@@ -125,6 +159,16 @@ function withAlert(outfit, alert) {
   return { ...outfit, alerts: [...outfit.alerts, alert] };
 }
 
+/** La journée compte-t-elle comme humide ? */
+function isWet(weather) {
+  return weather.precipitationProbability >= 40 || weather.precipitationMm > 1;
+}
+
+/** Une averse qui trempe, par opposition à une qui mouille. */
+function isHeavy(weather) {
+  return weather.precipitationMm > 3 || weather.precipitationProbability >= 70;
+}
+
 /**
  * Modificateurs, appliqués dans cet ordre.
  *
@@ -135,9 +179,9 @@ function withAlert(outfit, alert) {
  */
 const MODIFIERS = [
   function rain(weather, outfit) {
-    if (weather.precipitationProbability < 40 && weather.precipitationMm <= 1) return outfit;
+    if (!isWet(weather)) return outfit;
 
-    const heavy = weather.precipitationMm > 3 || weather.precipitationProbability >= 70;
+    const heavy = isHeavy(weather);
     const snowing = SNOW_CODES.has(weather.weatherCode);
 
     // Deux extrêmes où l'imperméable est le mauvais choix : par grand froid il
@@ -150,10 +194,23 @@ const MODIFIERS = [
           ? 'manteau'
           : 'imperméable';
 
+    // Les pieds aussi. « Étanche » plutôt qu'« imperméable » : le mot est déjà
+    // pris par la couche extérieure, et « imperméable et chaussures
+    // imperméables » dans la même phrase se lit deux fois pour rien.
+    //
+    // Rien pour la neige : elle rend le sol glissant, et c'est `ice`, plus bas,
+    // qui a le dernier mot sur les semelles.
+    const feet =
+      outfit.dressedFor >= OPEN_FEET_TEMP
+        ? outfit.layers.feet
+        : heavy
+          ? 'bottines étanches'
+          : 'chaussures étanches';
+
     return withAlert(
       {
         ...outfit,
-        layers: { ...outfit.layers, outer },
+        layers: { ...outfit.layers, outer, feet },
         // Un parapluie sous la neige ne sert à rien.
         accessories: snowing ? outfit.accessories : [...outfit.accessories, 'parapluie'],
       },

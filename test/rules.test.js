@@ -105,6 +105,61 @@ test('les bornes du barème sont inclusives par le bas', () => {
   assert.equal(buildOutfit(flatDay(4.9)).layers.outer, 'manteau');
 });
 
+/* ------------------------------------------------------------- les pieds */
+
+test('les pieds ont leur propre barème, du plus chaud au plus froid', () => {
+  const pieds = (ressenti) => buildOutfit(flatDay(ressenti)).layers.feet;
+
+  assert.equal(pieds(31), 'sandales ou baskets légères');
+  assert.equal(pieds(25), 'baskets légères');
+  assert.equal(pieds(14), 'baskets');
+  assert.equal(pieds(4), 'chaussures fermées');
+  assert.equal(pieds(-6), 'bottines fourrées');
+});
+
+test('les bornes du barème des pieds sont inclusives par le bas', () => {
+  assert.equal(buildOutfit(flatDay(28)).layers.feet, 'sandales ou baskets légères');
+  assert.equal(buildOutfit(flatDay(27.9)).layers.feet, 'baskets légères');
+  assert.equal(buildOutfit(flatDay(8)).layers.feet, 'baskets');
+  assert.equal(buildOutfit(flatDay(7.9)).layers.feet, 'chaussures fermées');
+});
+
+test('les pieds ne suivent pas les frontières du reste de la tenue', () => {
+  // C'est tout l'intérêt d'avoir séparé les deux barèmes : à 12 °C le torse a
+  // déjà son pull, les pieds gardent leurs baskets. Un seul tableau donnait le
+  // même mot des pieds de 0 à 40 °C, et la réponse ne bougeait jamais.
+  const doux = buildOutfit(flatDay(12));
+
+  assert.deepEqual(doux.layers.top, ['t-shirt', 'pull']);
+  assert.equal(doux.layers.feet, 'baskets');
+});
+
+test('une averse impose des chaussures étanches', () => {
+  const outfit = buildOutfit(flatDay(14, { precipitationProbability: 50, precipitationMm: 2 }));
+
+  assert.equal(outfit.layers.feet, 'chaussures étanches');
+});
+
+test('une averse qui trempe monte jusqu’aux bottines', () => {
+  const outfit = buildOutfit(flatDay(14, { precipitationProbability: 85, precipitationMm: 8 }));
+
+  assert.equal(outfit.layers.feet, 'bottines étanches');
+});
+
+test('la pluie ne ferme pas les pieds par forte chaleur', () => {
+  // Par 30 °C un pied mouillé sèche ; enfermé dans du caoutchouc étanche, non.
+  const outfit = buildOutfit(flatDay(30, { precipitationProbability: 90, precipitationMm: 10 }));
+
+  assert.equal(outfit.layers.feet, 'sandales ou baskets légères');
+});
+
+test('le mot des pieds ne répète pas celui de la couche extérieure', () => {
+  const outfit = buildOutfit(flatDay(14, { precipitationProbability: 80, precipitationMm: 6 }));
+
+  assert.equal(outfit.layers.outer, 'imperméable');
+  assert.doesNotMatch(outfit.layers.feet, /imperméable/);
+});
+
 /* ------------------------------------------- le point d'habillage pondéré */
 
 test('la tenue se décide sur le ressenti min plus 40 % de l’amplitude', () => {

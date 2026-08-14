@@ -84,11 +84,15 @@ test('sans couche extérieure, la tenue n’en invente pas', () => {
 });
 
 test('les pièces sont énoncées de la tête aux pieds', () => {
-  const { wear } = describe({ feelsLikeMin: 2, precipitationProbability: 80, precipitationMm: 6 });
+  // On demande sa chaussure au moteur plutôt que de l'écrire ici : le barème
+  // des pieds a plusieurs mots selon le temps, et ce test parle de l'ordre.
+  const weather = calmDay({ feelsLikeMin: 2, precipitationProbability: 80, precipitationMm: 6 });
+  const outfit = buildOutfit(weather);
+  const { wear } = describeDay(weather, outfit, MATIN);
 
-  const rang = (mot) => wear.toLowerCase().indexOf(mot);
+  const rang = (mot) => wear.toLowerCase().indexOf(mot.toLowerCase());
   assert.ok(rang('pull') < rang('jean'), 'le haut avant le bas');
-  assert.ok(rang('jean') < rang('chaussures'), 'le bas avant les pieds');
+  assert.ok(rang('jean') < rang(outfit.layers.feet), 'le bas avant les pieds');
 });
 
 /* --------------------------------------------------------- à emporter */
@@ -137,6 +141,25 @@ test('journée à grosse amplitude : l’accroche ne minimise pas la chaleur à 
   const { weather } = describe({ feelsLikeMin: 19, feelsLikeMax: 33 });
 
   assert.match(weather, /chaud|chaleur|taper|caniculaire/i);
+});
+
+test('les trois morceaux recomposent exactement la phrase météo', () => {
+  // L'app fait rouler le nombre comme un compteur, et a donc besoin de la
+  // valeur nue. Rien ne garantirait que sa recomposition dise la même chose
+  // que la phrase, sauf ce test.
+  for (const overrides of [
+    { feelsLikeMin: 6, feelsLikeMax: 6 },
+    { feelsLikeMin: 14, feelsLikeMax: 25 },
+    { feelsLikeMin: 19, feelsLikeMax: 33 },
+    { feelsLikeMin: -5, feelsLikeMax: -1 },
+  ]) {
+    const { weather, weatherParts } = describe(overrides);
+    const { before, value, after } = weatherParts;
+
+    assert.equal(`${before}${value}${after}`, weather);
+    assert.equal(typeof value, 'number');
+    assert.ok(Number.isInteger(value), `le compteur veut un entier : ${value}`);
+  }
 });
 
 /* ------------------------------------------------------------ les notes */

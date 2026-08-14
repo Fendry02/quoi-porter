@@ -238,6 +238,7 @@ export function pageTitle(outfit, placeName) {
  * @param {object} outfit l'Outfit produit par buildOutfit
  * @param {Date} at l'instant courant, pour ne dater que ce qui reste à venir
  * @returns {{wear: string, carry: string|null, weather: string,
+ *            weatherParts: {before: string, value: number, after: string},
  *            confidence: string|null,
  *            notes: {label: string, text: string, when: string|null,
  *                    span: {from: number, to: number}|null}[]}}
@@ -261,10 +262,21 @@ export function describeDay(weather, outfit, at) {
     ? { from: hours[0].hour, to: hours[hours.length - 1].hour }
     : null;
 
+  // La phrase est aussi rendue en trois morceaux, pour que l'app puisse faire
+  // rouler le nombre comme un compteur au lieu de le réécrire d'un coup. Elle
+  // reste construite ici, et non recomposée là-bas : la formulation n'a qu'un
+  // seul endroit où vivre, sinon les deux finissent par diverger d'une virgule.
+  const weatherParts = {
+    before: `${variant}, `,
+    value: Math.round(pivot),
+    after: `${NBSP}°C ressentis.`,
+  };
+
   return {
     wear: wearSentence(outfit),
     carry: carrySentence(outfit),
-    weather: `${variant}, ${Math.round(pivot)}${NBSP}°C ressentis.`,
+    weather: `${weatherParts.before}${weatherParts.value}${weatherParts.after}`,
+    weatherParts,
     confidence: confidenceWarning(weather),
     notes: outfit.alerts
       .slice()

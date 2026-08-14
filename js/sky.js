@@ -200,6 +200,59 @@ function precipitationFor(weather) {
   };
 }
 
+/** Longueur du mois synodique, en jours. */
+const SYNODIC_MONTH = 29.530588853;
+
+/** Nouvelle lune de référence : 6 janvier 2000, 18 h 14 UTC. */
+const NEW_MOON_EPOCH = Date.UTC(2000, 0, 6, 18, 14);
+
+/**
+ * La phase de la lune, en fraction de cycle.
+ *
+ * 0 est la nouvelle lune, 0,5 la pleine lune, et on revient à 0. La scène en a
+ * besoin pour dessiner le bon croissant du bon côté — une lune toujours pleine
+ * serait le seul mensonge d'un ciel qui suit par ailleurs le lieu et l'heure.
+ *
+ * Le modèle est le cycle moyen, sans les perturbations de l'orbite réelle. Il
+ * dérive de quelques heures au pire, ce qui ne se voit pas sur un croissant de
+ * cinquante pixels.
+ *
+ * @param {string} date une date ISO courte, « 2026-08-07 »
+ * @returns {number} dans [0, 1)
+ */
+export function moonPhaseOn(date) {
+  const jours = (Date.parse(`${date}T00:00:00Z`) - NEW_MOON_EPOCH) / 86400000;
+
+  // Une date illisible ne doit pas propager un NaN jusqu'aux uniformes : une
+  // seule valeur non finie suffit à faire disparaître tout le ciel.
+  if (!Number.isFinite(jours)) return 0.5;
+
+  const cycles = jours / SYNODIC_MONTH;
+  return cycles - Math.floor(cycles);
+}
+
+/**
+ * Le vent, ramené entre 0 et 1 pour la scène.
+ *
+ * Il ne démarre qu'à 25 km/h de rafales : en dessous, un vent qu'on ne sent pas
+ * ne doit pas se voir à l'écran. `cloudSpeed` continue de porter la dérive
+ * douce des nuages ; celui-ci ne pilote que ce qu'on ne montre qu'en cas de
+ * coup de vent — les traînées d'air.
+ */
+function windFor(weather) {
+  return clamp01((weather.windGustsKmh - 25) / 45);
+}
+
+/**
+ * La chaleur écrasante, ramenée entre 0 et 1.
+ *
+ * Sur le maximum et non sur le point d'habillage : l'air ne tremble qu'au plus
+ * chaud de la journée, et c'est ce moment-là qu'on représente.
+ */
+function heatFor(weather) {
+  return clamp01((weather.feelsLikeMax - 28) / 8);
+}
+
 /**
  * @param {object} weather un DayWeather normalisé
  * @param {Date} at l'instant à représenter
@@ -223,6 +276,9 @@ export function moodFor(weather, at) {
     cloudSpeed: clamp01(0.12 + weather.windMaxKmh / 60),
     turbulence: clamp01(weather.windGustsKmh / 80),
     haze: clamp01(family === 'fog' ? 0.9 : 0.08 + cloudCover * 0.35),
+    wind: windFor(weather),
+    heat: heatFor(weather),
+    moonPhase: moonPhaseOn(weather.date),
     precipitation: precipitationFor(weather),
     lightning: STORM_CODES.has(weather.weatherCode),
   };
@@ -237,6 +293,8 @@ const BLENDED_NUMBERS = [
   'cloudSpeed',
   'turbulence',
   'haze',
+  'wind',
+  'heat',
 ];
 
 /**
@@ -262,6 +320,12 @@ export function blendMoods(a, b, t) {
     zenith: mixHex(a.zenith, b.zenith, p),
     horizon: mixHex(a.horizon, b.horizon, p),
     ink: mixHex(a.ink, b.ink, p),
+    // La phase lunaire est discrète elle aussi, mais pour une autre raison que
+    // le type de précipitation : interpoler 0,98 vers 0,01 ferait remonter la
+    // lune tout un cycle à l'envers en une demi-seconde. Deux jours voisins ne
+    // diffèrent que d'un trente-septième de croissant : la bascule ne se voit
+    // pas, la traversée du cycle se verrait.
+    moonPhase: cible.moonPhase,
     precipitation: {
       type: cible.precipitation.type,
       intensity: lerp(a.precipitation.intensity, b.precipitation.intensity, p),
