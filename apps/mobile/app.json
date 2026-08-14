@@ -8,6 +8,7 @@
     "scheme": "weather-clothes",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "appleTeamId": "2QN5CTABMK",
       "bundleIdentifier": "com.weatherclothes.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Ta position permet de proposer une tenue adaptée à la météo locale."
