@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, AppState } from 'react-native';
+import { AppState } from 'react-native';
 import {
   useDerivedValue,
   useFrameCallback,
@@ -22,6 +22,7 @@ import {
 
 import { moodFor } from '@/core/sky';
 import type { DayWeather, SkyMood } from '@/lib/types';
+import type { Motion } from '@/motion/use-motion';
 
 /** Durée de la bascule d'un jour à l'autre. */
 const BLEND_MS = 650;
@@ -39,6 +40,14 @@ export type MoodUniforms = {
   cloudSpeed: number;
   turbulence: number;
   haze: number;
+  wind: number;
+  heat: number;
+  /**
+   * Discrète elle aussi, mais pas pour la même raison que le type de
+   * précipitation : interpoler 0,98 vers 0,01 ferait remonter la lune tout un
+   * cycle à l'envers pendant la traversée.
+   */
+  moonPhase: number;
   precipIntensity: number;
   /** 0 = pluie, 1 = neige. Discret : il n'existe pas de demi-flocon. */
   precipIsSnow: number;
@@ -69,6 +78,9 @@ const NEUTRAL: MoodUniforms = {
   cloudSpeed: 0.3,
   turbulence: 0.1,
   haze: 0.15,
+  wind: 0,
+  heat: 0,
+  moonPhase: 0.5,
   precipIntensity: 0,
   precipIsSnow: 0,
   lightning: 0,
@@ -85,6 +97,9 @@ export function toUniforms(mood: SkyMood): MoodUniforms {
     cloudSpeed: mood.cloudSpeed,
     turbulence: mood.turbulence,
     haze: mood.haze,
+    wind: mood.wind,
+    heat: mood.heat,
+    moonPhase: mood.moonPhase,
     precipIntensity: mood.precipitation.intensity,
     precipIsSnow: mood.precipitation.type === 'snow' ? 1 : 0,
     lightning: mood.lightning ? 1 : 0,
@@ -113,6 +128,9 @@ function snapshot(a: MoodUniforms, b: MoodUniforms, t: number): MoodUniforms {
     cloudSpeed: lerp(a.cloudSpeed, b.cloudSpeed, t),
     turbulence: lerp(a.turbulence, b.turbulence, t),
     haze: lerp(a.haze, b.haze, t),
+    wind: lerp(a.wind, b.wind, t),
+    heat: lerp(a.heat, b.heat, t),
+    moonPhase: t < 0.5 ? a.moonPhase : b.moonPhase,
     precipIntensity: lerp(a.precipIntensity, b.precipIntensity, t),
     precipIsSnow: t < 0.5 ? a.precipIsSnow : b.precipIsSnow,
     lightning: Math.max(a.lightning, b.lightning),
@@ -125,6 +143,15 @@ export type SkyState = {
   progress: SharedValue<number>;
   time: SharedValue<number>;
   flash: SharedValue<number>;
+  /**
+   * Où l'on en est du défilement, de 0 à 1. L'écran l'alimente, le ciel s'en
+   * sert pour décaler ses couches à des vitesses différentes.
+   */
+  scroll: SharedValue<number>;
+  /** Ce qu'on a tiré au-delà du haut de page, de 0 à 1 : le jour se lève. */
+  dawn: SharedValue<number>;
+  /** 1 quand le mouvement est permis, 0 sinon. */
+  allowed: SharedValue<number>;
   /** L'encre lisible sur le ciel courant, pour que le texte suive. */
   ink: string;
   /** Repli uni, si le shader ne compile pas sur cet appareil. */
@@ -134,8 +161,9 @@ export type SkyState = {
 /**
  * @param weather le jour affiché, ou `undefined` tant que rien n'est chargé
  * @param at l'instant représenté
+ * @param motion le réglage « mouvement réduit », qui coupe la boucle d'images
  */
-export function useSkyMood(weather: DayWeather | undefined, at: Date): SkyState {
+export function useSkyMood(weather: DayWeather | undefined, at: Date, motion: Motion): SkyState {
   const mood = useMemo(() => (weather ? moodFor(weather, at) : null), [weather, at]);
   const uniforms = useMemo(() => (mood ? toUniforms(mood) : NEUTRAL), [mood]);
 
@@ -147,6 +175,9 @@ export function useSkyMood(weather: DayWeather | undefined, at: Date): SkyState 
   const flash = useSharedValue(0);
   const nextStrike = useSharedValue(3);
   const bursts = useSharedValue(0);
+
+  const scroll = useSharedValue(0);
+  const dawn = useSharedValue(0);
 
   // Première ambiance : on se pose dessus, sans transition depuis un ciel qui
   // n'a jamais été montré.
@@ -194,21 +225,13 @@ export function useSkyMood(weather: DayWeather | undefined, at: Date): SkyState 
     }
   }, false);
 
+  const reduced = motion.reduced;
+
   useEffect(() => {
-    let reduced = false;
     let foreground = AppState.currentState === 'active';
 
     const apply = () => frame.setActive(foreground && !reduced);
-
-    AccessibilityInfo.isReduceMotionEnabled().then((value) => {
-      reduced = value;
-      apply();
-    });
-
-    const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', (value) => {
-      reduced = value;
-      apply();
-    });
+    apply();
 
     const app = AppState.addEventListener('change', (state) => {
       foreground = state === 'active';
@@ -216,11 +239,10 @@ export function useSkyMood(weather: DayWeather | undefined, at: Date): SkyState 
     });
 
     return () => {
-      motion.remove();
       app.remove();
       frame.setActive(false);
     };
-  }, [frame]);
+  }, [frame, reduced]);
 
   return {
     from,
@@ -228,6 +250,9 @@ export function useSkyMood(weather: DayWeather | undefined, at: Date): SkyState 
     progress,
     time,
     flash,
+    scroll,
+    dawn,
+    allowed: motion.allowed,
     ink: mood?.ink ?? '#12293d',
     horizon: mood?.horizon ?? '#cfe4ef',
   };
@@ -239,6 +264,11 @@ export function useSkyUniforms(state: SkyState, width: number, height: number) {
     const t = state.progress.value;
     const a = state.from.value;
     const b = state.to.value;
+
+    // La parallaxe et le lever du jour sont du mouvement piloté au doigt : le
+    // mouvement réduit les annule ici, en un seul endroit, plutôt que dans
+    // chaque gestionnaire de défilement.
+    const moving = state.allowed.value;
 
     return {
       u_resolution: [width, height],
@@ -252,9 +282,14 @@ export function useSkyUniforms(state: SkyState, width: number, height: number) {
       u_cloudSpeed: lerp(a.cloudSpeed, b.cloudSpeed, t),
       u_turbulence: lerp(a.turbulence, b.turbulence, t),
       u_haze: lerp(a.haze, b.haze, t),
+      u_wind: lerp(a.wind, b.wind, t),
+      u_heat: lerp(a.heat, b.heat, t),
+      u_moonPhase: t < 0.5 ? a.moonPhase : b.moonPhase,
       u_precipIntensity: lerp(a.precipIntensity, b.precipIntensity, t),
       u_precipIsSnow: t < 0.5 ? a.precipIsSnow : b.precipIsSnow,
       u_flash: state.flash.value,
+      u_scroll: state.scroll.value * moving,
+      u_dawn: state.dawn.value * moving,
     };
   }, [width, height]);
 }

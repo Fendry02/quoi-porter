@@ -95,6 +95,11 @@ export type ForecastDay = {
     wear: string;
     carry: string | null;
     weather: string;
+    /**
+     * La même phrase en trois morceaux, pour que le nombre puisse rouler comme
+     * un compteur au lieu d'être réécrit d'un coup.
+     */
+    weatherParts: { before: string; value: number; after: string };
     confidence: string | null;
     /** L'écart avec la veille. Nul les autres jours, et sans veille connue. */
     versusYesterday: string | null;
@@ -121,6 +126,12 @@ export type SkyMood = {
   cloudSpeed: number;
   turbulence: number;
   haze: number;
+  /** Les rafales, mais seulement au-delà d'une brise : 0 tant qu'on ne sent rien. */
+  wind: number;
+  /** La chaleur écrasante, d'où le tremblement de l'air. */
+  heat: number;
+  /** 0 nouvelle lune, 0,5 pleine lune, et retour. */
+  moonPhase: number;
   precipitation: { type: 'rain' | 'snow' | null; intensity: number };
   lightning: boolean;
 };

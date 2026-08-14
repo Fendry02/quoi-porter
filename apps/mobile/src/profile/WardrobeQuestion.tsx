@@ -29,6 +29,22 @@ export function wardrobeLabel(profile: Profile | null) {
   return 'Vestiaire';
 }
 
+/**
+ * Le choix courant en une phrase, pour le bas de l'écran principal.
+ *
+ * Le réglage vit derrière trois points en haut à droite, et un réglage caché
+ * derrière une icône muette est introuvable. Cette phrase-là dit lequel est
+ * actif sans qu'on ait à ouvrir quoi que ce soit.
+ *
+ * « Vestiaire » ne rentre pas dans la tournure — « dans le vestiaire
+ * vestiaire » — donc le choix neutre a la sienne.
+ */
+export function wardrobeSentence(profile: Profile | null) {
+  if (profile === 'femme') return 'Tenues piochées dans le vestiaire femme.';
+  if (profile === 'homme') return 'Tenues piochées dans le vestiaire homme.';
+  return 'Tenues piochées dans la garde-robe commune.';
+}
+
 export function WardrobeQuestion({
   current,
   onChoose,
