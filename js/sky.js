@@ -109,6 +109,48 @@ function placeMinutes(at, utcOffsetSeconds) {
   return ((total % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
 }
 
+/** Date locale au lieu, au format ISO court, pour un instant donné. */
+function placeDate(at, utcOffsetSeconds) {
+  return new Date(at.getTime() + utcOffsetSeconds * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * L'instant qui représente un jour.
+ *
+ * Aujourd'hui se représente à l'instant présent : le ciel de l'app est celui
+ * qu'on a au-dessus de la tête. Un autre jour, lui, n'a pas d'instant présent.
+ * Le montrer à l'heure qu'il est afficherait une nuit noire sur une journée
+ * annoncée à trente-six degrés, dès qu'on consulte la semaine après le coucher
+ * du soleil : l'image contredirait le conseil.
+ *
+ * On le représente donc à son midi — le milieu de son jour à lui, calculé sur
+ * son propre lever et son propre coucher, là où `sunHeightAt()` place son
+ * sommet.
+ *
+ * C'est la règle qu'applique déjà `relevantHours()` dans `hours.js` : le
+ * déroulé de la journée part de l'heure courante pour aujourd'hui, d'une heure
+ * canonique pour les autres jours. Le ciel s'aligne dessus.
+ *
+ * @param {object} weather un DayWeather normalisé
+ * @param {Date} at l'instant courant
+ * @returns {Date} l'instant à représenter pour ce jour
+ */
+export function momentFor(weather, at) {
+  const offset = weather.utcOffsetSeconds ?? 0;
+  if (weather.date === placeDate(at, offset)) return at;
+
+  const lever = minutesOfDay(weather.sunrise);
+  const coucher = minutesOfDay(weather.sunset);
+
+  // Un jour sans durée n'a pas de midi à montrer : nuit polaire, jour polaire,
+  // ou horaires illisibles. La comparaison écarte aussi les NaN, qui rendraient
+  // l'instant invalide et propageraient du NaN jusqu'aux uniformes du shader.
+  if (!(coucher > lever)) return at;
+
+  const midi = (lever + coucher) / 2;
+  return new Date(Date.parse(`${weather.date}T00:00:00Z`) + midi * 60_000 - offset * 1000);
+}
+
 /** Écart circulaire entre deux minutes de la journée, au plus court. */
 function circularDistance(a, b) {
   const brut = Math.abs(a - b);
@@ -260,7 +302,7 @@ function heatFor(weather) {
  */
 export function moodFor(weather, at) {
   const family = familyOf(weather.weatherCode);
-  const sunHeight = sunHeightAt(weather, at);
+  const sunHeight = sunHeightAt(weather, momentFor(weather, at));
   const palette = paletteFor(family, sunHeight);
   const cloudCover = CLOUD_COVER[family];
 

@@ -55,6 +55,57 @@ test('la hauteur de soleil est continue de part et d’autre du coucher', () => 
   assert.ok(Math.abs(avant - apres) < 0.02, `saut de ${Math.abs(avant - apres)}`);
 });
 
+/* ------------------------------------------------------ l’instant représenté */
+
+test('aujourd’hui se représente à l’instant présent', () => {
+  // Le ciel d'aujourd'hui est celui qu'on a au-dessus de la tête : à 22 h 30,
+  // il fait nuit, et c'est bien la nuit qu'il faut montrer.
+  const ceSoir = at('22:30');
+
+  assert.equal(moodFor(day(), ceSoir).sunHeight, sunHeightAt(day(), ceSoir));
+});
+
+test('un jour futur se représente à son midi, pas à l’heure qu’il est', () => {
+  // Sans cette règle, consulter samedi un soir d'août affiche une nuit noire
+  // sur une journée annoncée à 36 degrés : l'image contredit le conseil.
+  const demain = day({
+    date: '2026-08-08',
+    sunrise: '2026-08-08T06:32',
+    sunset: '2026-08-08T21:28',
+  });
+  const ceSoir = at('22:30');
+
+  assert.ok(sunHeightAt(demain, ceSoir) < 0, 'le repère : à 22 h 30 le soleil est couché');
+  assert.ok(
+    moodFor(demain, ceSoir).sunHeight > 0.98,
+    `attendu un plein midi, obtenu ${moodFor(demain, ceSoir).sunHeight}`,
+  );
+});
+
+test('le midi d’un jour futur suit son propre lever et son propre coucher', () => {
+  // Une journée décalée doit culminer à son milieu à elle, pas à un midi fixe.
+  const tardive = day({
+    date: '2026-08-08',
+    sunrise: '2026-08-08T09:00',
+    sunset: '2026-08-08T15:00',
+  });
+
+  // Milieu de cette journée : 12 h. La veille au soir, on doit obtenir ce midi.
+  assert.ok(moodFor(tardive, at('22:30')).sunHeight > 0.98);
+});
+
+test('un jour futur garde une nuit franche si le ciel est nocturne par nature', () => {
+  // La règle ne doit pas inventer du soleil : elle choisit un instant, elle ne
+  // force pas une palette. Un jour polaire sans lever reste sombre.
+  const polaire = day({
+    date: '2026-08-08',
+    sunrise: '2026-08-08T12:00',
+    sunset: '2026-08-08T12:00',
+  });
+
+  assert.ok(Number.isFinite(moodFor(polaire, at('22:30')).sunHeight));
+});
+
 /* ---------------------------------------------------------------- le mood */
 
 test('le mood expose toutes les clés du contrat', () => {

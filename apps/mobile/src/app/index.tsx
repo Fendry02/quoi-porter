@@ -31,7 +31,7 @@ import {
 import Animated, { useAnimatedScrollHandler } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { weatherPalette } from '@/core/weather';
+import { luminanceOf, veilFor, weatherPalette } from '@/core/weather';
 import { useForecast } from '@/hooks/use-forecast';
 import { useProfile } from '@/hooks/use-profile';
 import { useNow } from '@/hooks/use-now';
@@ -86,15 +86,19 @@ function regionOf(place: Place | null | undefined) {
  * traversée d'éclairs, demandent un voile en plus. Sombre sous une encre
  * claire, clair sous une encre sombre.
  */
-function veilsFor(ink: string) {
-  const n = parseInt(ink.replace('#', ''), 16);
-  const luminance =
-    (((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114) / 255;
-  const inkIsLight = luminance > 0.5;
+function veilsFor(ink: string, skies: string[]) {
+  // L'opacité n'est plus réglée à l'œil : `veilFor()` cherche la plus petite qui
+  // tienne 4,5 pour 1 sur le zénith comme sur l'horizon. Les nuits et la plupart
+  // des jours n'en réclament aucune et gardent leur éclat ; les crépuscules, qui
+  // tombaient à 2 pour 1, en reçoivent un tiers.
+  const veil = veilFor(ink, skies);
+  const alpha = Math.round(veil.alpha * 255)
+    .toString(16)
+    .padStart(2, '0');
 
   return {
-    scrim: inkIsLight ? 'rgba(6,10,20,0.30)' : 'rgba(255,255,255,0.24)',
-    surface: inkIsLight ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.46)',
+    scrim: `${veil.color}${alpha}`,
+    surface: luminanceOf(ink) > 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.46)',
   };
 }
 
@@ -220,7 +224,10 @@ export default function HomeScreen() {
 
   const ink = sky.ink;
   const muted = `${ink}B0`;
-  const veils = useMemo(() => veilsFor(ink), [ink]);
+  const veils = useMemo(
+    () => veilsFor(ink, [sky.zenith, sky.horizon]),
+    [ink, sky.zenith, sky.horizon],
+  );
 
   // Le défilement pilote deux choses dans le ciel, et rien d'autre : les
   // couches se décalent à des vitesses différentes vers le bas, et le jour se

@@ -1,3 +1,6 @@
 .nimbalyst/
 .DS_Store
 node_modules/
+
+# Cles API App Store Connect : jamais dans le repo.
+*.p8

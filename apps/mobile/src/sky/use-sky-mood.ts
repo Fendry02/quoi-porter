@@ -156,6 +156,12 @@ export type SkyState = {
   ink: string;
   /** Repli uni, si le shader ne compile pas sur cet appareil. */
   horizon: string;
+  /**
+   * Le haut du dôme. Avec `horizon`, il encadre le dégradé : de quoi calculer
+   * le voile qui garantit la lisibilité sur toute la hauteur de l'écran, sans
+   * avoir à échantillonner le rendu.
+   */
+  zenith: string;
 };
 
 /**
@@ -255,6 +261,7 @@ export function useSkyMood(weather: DayWeather | undefined, at: Date, motion: Mo
     allowed: motion.allowed,
     ink: mood?.ink ?? '#12293d',
     horizon: mood?.horizon ?? '#cfe4ef',
+    zenith: mood?.zenith ?? '#4a90c4',
   };
 }
 
