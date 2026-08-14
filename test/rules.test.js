@@ -499,3 +499,33 @@ test('outfitIsRobust ne mute pas la météo qu’on lui passe', () => {
 
   assert.deepEqual(weather, copie);
 });
+
+/* ------------------------------------------------------ le vestiaire choisi */
+
+test('le vestiaire féminin ouvre la jupe quand il fait doux', () => {
+  const bas = buildOutfit(flatDay(26), 'femme').layers.bottom;
+
+  assert.match(bas, /jupe/, 'la jupe doit apparaître');
+  assert.match(bas, /short/, 'sans retirer le short : on propose, on n’impose pas');
+});
+
+test('la jupe s’ouvre aussi sur les journées tempérées', () => {
+  assert.match(buildOutfit(flatDay(21), 'femme').layers.bottom, /jupe/);
+  assert.match(buildOutfit(flatDay(16), 'femme').layers.bottom, /jupe/);
+});
+
+test('par grand froid le bas ne bouge pas : le pantalon est le bon conseil', () => {
+  // Proposer une jupe à 2 °C serait un conseil, pas une option — et un mauvais.
+  assert.equal(buildOutfit(flatDay(2), 'femme').layers.bottom, buildOutfit(flatDay(2)).layers.bottom);
+});
+
+test('sans profil, le vestiaire reste celui de tout le monde', () => {
+  assert.equal(buildOutfit(flatDay(26)).layers.bottom, 'short');
+  assert.equal(buildOutfit(flatDay(26), 'homme').layers.bottom, 'short');
+});
+
+test('le profil ne change pas le jugement de robustesse', () => {
+  // outfitIsRobust compare deux tenues entre elles : le vestiaire choisi doit
+  // s'appliquer aux deux ou à aucune, sinon toute journée paraîtrait incertaine.
+  assert.equal(outfitIsRobust(flatDay(12, { feelsLikeSpread: 1 })), true);
+});

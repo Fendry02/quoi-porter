@@ -268,8 +268,40 @@ const MODIFIERS = [
  * @param {object} weather un DayWeather normalisé
  * @returns {object} un Outfit
  */
-export function buildOutfit(weather) {
-  return MODIFIERS.reduce((outfit, modifier) => modifier(weather, outfit), baseOutfit(weather));
+/**
+ * Le bas proposé quand on porte des jupes, par temps qui s'y prête.
+ *
+ * On ajoute une option, on n'en retire aucune : l'app conseille une tenue, elle
+ * ne décide pas de la garde-robe de qui la lit. En dessous de 15 °C rien ne
+ * change — une jupe par 2 °C ne serait plus une option, ce serait un mauvais
+ * conseil.
+ */
+const SKIRT_WEATHER = {
+  short: 'short ou jupe',
+  'pantalon léger': 'pantalon léger ou jupe',
+  pantalon: 'pantalon ou jupe',
+};
+
+function withWardrobe(outfit, profile) {
+  if (profile !== 'femme') return outfit;
+
+  const bas = SKIRT_WEATHER[outfit.layers.bottom];
+  if (!bas) return outfit;
+
+  return { ...outfit, layers: { ...outfit.layers, bottom: bas } };
+}
+
+/**
+ * @param {object} weather un DayWeather normalisé
+ * @param {string|null} [profile] le vestiaire de qui lit, quand il l'a précisé
+ */
+export function buildOutfit(weather, profile = null) {
+  const outfit = MODIFIERS.reduce(
+    (courant, modifier) => modifier(weather, courant),
+    baseOutfit(weather),
+  );
+
+  return withWardrobe(outfit, profile);
 }
 
 /**

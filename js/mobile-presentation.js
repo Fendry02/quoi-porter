@@ -6,6 +6,8 @@
  * pour rester immédiatement lisible, quel que soit le ciel.
  */
 
+import { familyOf } from './conditions.js';
+
 const CONDITIONS = new Map([
   [0, 'Ciel dégagé'],
   [1, 'Ciel dégagé'],
@@ -53,13 +55,12 @@ const DARK_PALETTES = {
   storm: { background: '#101B2E', surface: '#192942', ink: '#F3F7FA', muted: '#C5D1E4' },
 };
 
-function familyFor(weatherCode) {
-  if ([95, 96, 99].includes(weatherCode)) return 'storm';
-  if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) return 'snow';
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(weatherCode)) return 'rain';
-  if ([2, 3, 45, 48].includes(weatherCode)) return 'cloud';
-  return 'clear';
-}
+/**
+ * La partition des codes vit dans `conditions.js`, avec l'accord entre modèles
+ * qui s'en sert : deux copies finiraient par diverger, et la palette ne dirait
+ * plus la même météo que le libellé.
+ */
+const familyFor = familyOf;
 
 /** @param {number} weatherCode code WMO */
 export function conditionLabel(weatherCode) {

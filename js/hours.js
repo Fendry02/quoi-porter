@@ -14,7 +14,7 @@ const DEFAULT_START_HOUR = 8;
 const MINUTES_PER_DAY = 24 * 60;
 
 /** Date locale au lieu, au format ISO court, pour un instant donné. */
-function placeDate(at, utcOffsetSeconds) {
+export function placeDate(at, utcOffsetSeconds) {
   return new Date(at.getTime() + utcOffsetSeconds * 1000).toISOString().slice(0, 10);
 }
 

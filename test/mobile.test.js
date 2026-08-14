@@ -75,3 +75,79 @@ test('le widget ne crée pas de fausse alerte quand la journée est sans risque'
 
   assert.equal(widgetSnapshot(today, 'Nantes, Pays de la Loire, France').attention, null);
 });
+
+test('le vestiaire choisi traverse toute la semaine', () => {
+  // Le profil se demande une fois ; il doit valoir pour les sept jours, pas
+  // seulement pour celui qu'on regarde en premier.
+  const semaine = buildWeek([day(0, { feelsLikeMin: 26 }), day(1, { feelsLikeMin: 26 })], new Date('2026-08-10T08:00:00Z'), 'femme');
+
+  for (const jour of semaine) {
+    assert.match(jour.outfit.layers.bottom, /jupe/, `${jour.date} doit proposer la jupe`);
+  }
+});
+
+test('sans profil, la semaine garde le vestiaire commun', () => {
+  const semaine = buildWeek([day(0, { feelsLikeMin: 26 })], new Date('2026-08-10T08:00:00Z'));
+
+  assert.equal(semaine[0].outfit.layers.bottom, 'short');
+});
+
+/* ------------------------------------------------- aujourd'hui et la veille */
+
+test('la semaine commence à aujourd’hui, même quand la veille est fournie', () => {
+  // Dès qu'on demande la veille pour comparer, elle arrive en tête du tableau.
+  // Supposer que l'entrée 0 est aujourd'hui décalerait toute la semaine d'un
+  // cran, et « Aujourd'hui » désignerait hier.
+  const hier = day(-1, { feelsLikeMin: 22 });
+  const semaine = buildWeek([hier, day(0), day(1)], MORNING);
+
+  assert.equal(semaine[0].id, '2026-08-10');
+  assert.equal(semaine[0].isToday, true);
+  assert.equal(semaine.length, 2, 'la veille ne fait pas partie de la semaine');
+});
+
+test('la comparaison avec hier ne vaut que pour aujourd’hui', () => {
+  const hier = day(-1, { feelsLikeMin: 22 });
+  const semaine = buildWeek([hier, day(0, { feelsLikeMin: 14 }), day(1)], MORNING);
+
+  assert.match(semaine[0].phrasing.versusYesterday, /moins qu’hier/);
+  assert.equal(semaine[1].phrasing.versusYesterday, null, 'demain ne se compare pas à hier');
+});
+
+test('sans veille fournie, on ne compare pas et la semaine ne bouge pas', () => {
+  const semaine = buildWeek([day(0), day(1)], MORNING);
+
+  assert.equal(semaine[0].id, '2026-08-10');
+  assert.equal(semaine[0].phrasing.versusYesterday, null);
+});
+
+test('une date d’aujourd’hui introuvable ne fait pas perdre la semaine', () => {
+  // Prévision périmée, ou fuseau qui décale : mieux vaut afficher le premier
+  // jour connu qu'un écran vide.
+  const semaine = buildWeek([day(3), day(4)], MORNING);
+
+  assert.equal(semaine.length, 2);
+  assert.equal(semaine[0].id, '2026-08-13');
+});
+
+test('l’avis pour la suite de la journée ne concerne qu’aujourd’hui', () => {
+  // « Prends une veste pour ce soir » sous un titre DEMAIN ne voudrait rien dire.
+  const froidLeSoir = (index) => ({
+    ...day(index),
+    hours: Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      temp: hour >= 18 ? 4 : 21,
+      feelsLike: hour >= 18 ? 4 : 21,
+      precipitationMm: 0,
+      precipitationProbability: 0,
+      windGustsKmh: 8,
+    })),
+    feelsLikeMin: 4,
+    feelsLikeMax: 21,
+  });
+
+  const semaine = buildWeek([froidLeSoir(0), froidLeSoir(1)], new Date('2026-08-10T06:00:00Z'));
+
+  assert.match(semaine[0].phrasing.later, /soir/i);
+  assert.equal(semaine[1].phrasing.later, null);
+});

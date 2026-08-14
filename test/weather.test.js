@@ -71,6 +71,7 @@ test('reporte chaque champ de l’API sur le bon champ du contrat', () => {
     windGustsKmh: 19.8,
     uvIndex: 6.2,
     weatherCode: 1,
+    conditionDissent: null,
     sunrise: '2026-08-07T06:34',
     sunset: '2026-08-07T21:22',
     utcOffsetSeconds: 7200,
@@ -125,8 +126,10 @@ test('une valeur nulle devient une valeur neutre, jamais null', () => {
   for (const jour of jours) {
     for (const [champ, valeur] of Object.entries(jour)) {
       // L'enveloppe entre modèles est légitimement nulle en mono-modèle :
-      // prétendre mesurer un accord entre une seule source serait faux.
-      if (champ === 'feelsLikeSpread') continue;
+      // prétendre mesurer un accord entre une seule source serait faux. La
+      // réserve sur les conditions l'est tout autant quand personne ne
+      // conteste le consensus.
+      if (champ === 'feelsLikeSpread' || champ === 'conditionDissent') continue;
       assert.notEqual(valeur, null, `${champ} ne doit jamais être null`);
       assert.notEqual(valeur, undefined, `${champ} ne doit jamais être undefined`);
     }
@@ -251,6 +254,36 @@ test('un modèle muet sur une variable n’entre pas dans sa médiane', () => {
   assert.equal(normalizeForecast(payload)[0].precipitationProbability, 85);
 });
 
+test('le code météo est l’avis majoritaire, pas celui du premier modèle', () => {
+  // Paris : ECMWF ouvre le tableau avec de la bruine quand trois modèles sur
+  // cinq disent couvert. Être premier dans une liste n'est pas un argument.
+  const payload = ensembleResponse({
+    [MODELS[0]]: { daily: { weathercode: 55 } },
+    [MODELS[1]]: { daily: { weathercode: 3 } },
+    [MODELS[2]]: { daily: { weathercode: 3 } },
+    [MODELS[3]]: { daily: { weathercode: 3 } },
+    [MODELS[4]]: { daily: { weathercode: 51 } },
+  });
+
+  const [jour] = normalizeForecast(payload);
+
+  assert.equal(jour.weatherCode, 3);
+  assert.equal(jour.conditionDissent, null);
+});
+
+test('le modèle isolé qui annonce nettement pire est conservé', () => {
+  const payload = ensembleResponse({
+    [MODELS[0]]: { daily: { weathercode: 3 } },
+    [MODELS[1]]: { daily: { weathercode: 3 } },
+    [MODELS[2]]: { daily: { weathercode: 95 } },
+  });
+
+  const [jour] = normalizeForecast(payload);
+
+  assert.equal(jour.weatherCode, 3, 'le consensus reste couvert');
+  assert.deepEqual(jour.conditionDissent, { family: 'storm', code: 95, count: 1, total: 3 });
+});
+
 test('la probabilité du jour est le sommet de la courbe horaire', () => {
   // Les modèles s'accordent sur la pluie mais pas sur l'heure : l'un l'attend
   // à 5 h, l'autre à 20 h. La médiane des maxima quotidiens annoncerait 60 %,
@@ -336,4 +369,18 @@ test('la requête simple reste lisible telle quelle', () => {
 
   assert.equal(jour.feelsLikeMax, 23.1);
   assert.equal(jour.hours[19].precipitationProbability, 80);
+});
+
+test('la requête peut demander la veille, pour comparer', () => {
+  const url = forecastUrl(48.8566, 2.3522, MODELS, 7, 1);
+
+  assert.equal(url.searchParams.get('past_days'), '1');
+});
+
+test('sans veille demandée, le paramètre reste absent', () => {
+  // Le web ne compare pas à hier : lui envoyer un jour passé décalerait sa
+  // journée d'aujourd'hui d'un cran.
+  const url = forecastUrl(48.8566, 2.3522, MODELS, 2);
+
+  assert.equal(url.searchParams.get('past_days'), null);
 });

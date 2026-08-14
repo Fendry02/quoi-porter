@@ -22,7 +22,7 @@
  */
 
 import { relevantHours, spanOf, peakOf, phraseSpan, NBSP } from './hours.js';
-import { outfitIsRobust } from './rules.js';
+import { dressingPoint, outfitIsRobust } from './rules.js';
 
 /**
  * Accroches par palier de ressenti, du plus chaud au plus froid.
@@ -162,13 +162,51 @@ function noteFor(alert, hours, window) {
  * barème — c'est-à-dire quand il change réellement les vêtements.
  */
 function confidenceWarning(weather) {
-  if (outfitIsRobust(weather)) return null;
+  const reserves = [];
 
-  const ecart = weather.feelsLikeSpread.toLocaleString('fr-FR', {
-    maximumFractionDigits: 1,
-  });
+  if (!outfitIsRobust(weather)) {
+    const ecart = weather.feelsLikeSpread.toLocaleString('fr-FR', {
+      maximumFractionDigits: 1,
+    });
 
-  return `Les modèles divergent de ${ecart}${NBSP}°C — la tenue pourrait être différente.`;
+    reserves.push(`Les modèles divergent de ${ecart}${NBSP}°C — la tenue pourrait être différente.`);
+  }
+
+  const dissidence = dissentWarning(weather.conditionDissent);
+  if (dissidence) reserves.push(dissidence);
+
+  return reserves.length > 0 ? reserves.join(' ') : null;
+}
+
+/** Un modèle par voix, écrit en toutes lettres : ils sont cinq au plus. */
+const COMPTES = ['aucun', 'un', 'deux', 'trois', 'quatre', 'cinq'];
+
+const DISSENT_PHRASES = {
+  storm: 'un orage',
+  snow: 'de la neige',
+  rain: 'de la pluie',
+  cloud: 'un ciel couvert',
+};
+
+/**
+ * La minorité qui annonce nettement pire.
+ *
+ * Le consensus décide de la tenue, et il a raison de le faire — mais partir
+ * sans savoir qu'un centre attend un orage n'est pas la même chose que partir
+ * en l'ayant lu. `conditions.js` a déjà filtré les désaccords de voisinage :
+ * ce qui arrive ici mérite d'être dit.
+ */
+function dissentWarning(dissent) {
+  if (!dissent) return null;
+
+  const quoi = DISSENT_PHRASES[dissent.family];
+  if (!quoi) return null;
+
+  const combien = COMPTES[dissent.count] ?? String(dissent.count);
+  const total = COMPTES[dissent.total] ?? String(dissent.total);
+  const pluriel = dissent.count > 1;
+
+  return `${combien.charAt(0).toUpperCase()}${combien.slice(1)} modèle${pluriel ? 's' : ''} sur ${total} annonce${pluriel ? 'nt' : ''} ${quoi}.`;
 }
 
 /**
@@ -233,4 +271,32 @@ export function describeDay(weather, outfit, at) {
       .sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
       .map((alert) => noteFor(alert, hours, window)),
   };
+}
+
+/** En dessous de cet écart, hier et aujourd'hui s'habillent pareil. */
+const SAME_AS_YESTERDAY = 1.5;
+
+/**
+ * L'écart avec hier, en une phrase.
+ *
+ * On ne s'habille pas d'après un chiffre absolu : quatorze degrés ne veulent
+ * rien dire tant qu'on ne sait pas ce qu'on a vécu la veille. C'est la
+ * comparaison qui décide, et c'est elle qu'on donne.
+ *
+ * On compare les points d'habillage et non les maximums : deux journées de même
+ * maximum mais d'amplitude opposée ne demandent pas la même tenue, et c'est le
+ * matin qu'on sort.
+ *
+ * @param {object} today un DayWeather normalisé
+ * @param {object|null} yesterday la veille, quand on l'a
+ * @returns {string|null} null s'il n'y a rien à comparer
+ */
+export function versusYesterday(today, yesterday) {
+  if (!yesterday) return null;
+
+  const ecart = dressingPoint(today) - dressingPoint(yesterday);
+  if (Math.abs(ecart) < SAME_AS_YESTERDAY) return 'Comme hier.';
+
+  const degres = Math.round(Math.abs(ecart));
+  return `${degres}${NBSP}°C de ${ecart > 0 ? 'plus' : 'moins'} qu’hier.`;
 }

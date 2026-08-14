@@ -14,6 +14,7 @@
  */
 
 import { median, pool, spread, acrossModels } from './ensemble.js';
+import { consensusCode } from './conditions.js';
 
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -175,6 +176,7 @@ export function normalizeForecast(payload) {
     const windMaxKmh = orDefault(consensus('windspeed_10m_max', i));
     const windGustsKmh = orDefault(consensus('windgusts_10m_max', i), windMaxKmh);
     const hours = heures.get(date) ?? [];
+    const avis = consensusCode(acrossModels(daily, 'weathercode', models, i));
 
     return {
       date,
@@ -203,9 +205,15 @@ export function normalizeForecast(payload) {
       windMaxKmh,
       windGustsKmh,
       uvIndex: orDefault(consensus('uv_index_max', i)),
-      // Le code météo est une catégorie, pas une grandeur : une médiane de
-      // codes n'aurait aucun sens. On prend celui du premier modèle qui parle.
-      weatherCode: orDefault(acrossModels(daily, 'weathercode', models, i).find((c) => c != null)),
+      // Le code météo est une catégorie, pas une grandeur : ni médiane ni
+      // moyenne n'auraient de sens. On compte donc les voix, par famille.
+      // Retenir le premier modèle qui parle revenait à confier la météo du
+      // jour à ECMWF seul, majorité contraire ou non : Paris affichait
+      // « Bruine » quand trois modèles sur cinq disaient « Couvert ».
+      weatherCode: orDefault(avis?.code),
+      // Le modèle isolé qui annonce nettement pire. Nul quand tout le monde
+      // s'accorde — il n'y a alors aucune réserve à formuler.
+      conditionDissent: avis?.dissent ?? null,
       // sky.js a besoin d'une plage de jour pour situer l'heure courante ;
       // sans elle il ne saurait pas distinguer midi de minuit.
       sunrise: orDefault(
@@ -241,7 +249,7 @@ async function getJson(url) {
   return response.json();
 }
 
-export function forecastUrl(latitude, longitude, models, forecastDays = 2) {
+export function forecastUrl(latitude, longitude, models, forecastDays = 2, pastDays = 0) {
   const url = new URL(FORECAST_URL);
   url.searchParams.set('latitude', latitude);
   url.searchParams.set('longitude', longitude);
@@ -249,6 +257,10 @@ export function forecastUrl(latitude, longitude, models, forecastDays = 2) {
   url.searchParams.set('hourly', HOURLY_FIELDS.join(','));
   url.searchParams.set('forecast_days', String(forecastDays));
   url.searchParams.set('timezone', 'auto');
+  // Facultatif, et absent par défaut : les jours passés arrivent en tête du
+  // tableau, si bien qu'en demander sans le savoir décalerait « aujourd'hui »
+  // d'un cran chez qui ne compare pas à hier.
+  if (pastDays > 0) url.searchParams.set('past_days', String(pastDays));
   if (models.length > 0) url.searchParams.set('models', models.join(','));
 
   return url;
@@ -266,12 +278,16 @@ export function forecastUrl(latitude, longitude, models, forecastDays = 2) {
  * @param {number} [forecastDays=2] nombre de jours à demander
  * @returns {Promise<object[]>} un DayWeather par jour demandé
  */
-export async function fetchForecast(latitude, longitude, forecastDays = 2) {
+export async function fetchForecast(latitude, longitude, forecastDays = 2, pastDays = 0) {
   try {
-    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, MODELS, forecastDays)));
+    return normalizeForecast(
+      await getJson(forecastUrl(latitude, longitude, MODELS, forecastDays, pastDays)),
+    );
   } catch (error) {
     console.warn('Ensemble multi-modèles indisponible, repli sur une source unique.', error);
-    return normalizeForecast(await getJson(forecastUrl(latitude, longitude, [], forecastDays)));
+    return normalizeForecast(
+      await getJson(forecastUrl(latitude, longitude, [], forecastDays, pastDays)),
+    );
   }
 }
 

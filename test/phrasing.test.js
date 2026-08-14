@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildOutfit } from '../js/rules.js';
-import { describeDay, pageTitle } from '../js/phrasing.js';
+import { describeDay, pageTitle, versusYesterday } from '../js/phrasing.js';
 
 /** Heures plates par défaut ; chaque test creuse celles qui l'intéressent. */
 function flatHours(feelsLike) {
@@ -449,4 +449,93 @@ test('la température affichée est celle pour laquelle on habille', () => {
   const outfit = buildOutfit(calmDay({ feelsLikeMin: 12 }));
 
   assert.match(pageTitle(outfit, 'Lyon'), new RegExp(`${Math.round(outfit.dressedFor)}°`));
+});
+
+/* ------------------------------- la réserve sur l'avis des modèles */
+
+test('le modèle isolé qui annonce un orage est rapporté', () => {
+  // Nice : quatre modèles voyaient de la pluie, un cinquième un orage. Le
+  // consensus a raison de rester à la pluie, mais partir sans le savoir n'est
+  // pas la même chose que partir en l'ayant lu.
+  const { confidence } = describe({
+    feelsLikeMin: 12,
+    feelsLikeMax: 12,
+    feelsLikeSpread: 1,
+    conditionDissent: { family: 'storm', code: 95, count: 1, total: 5 },
+  });
+
+  assert.ok(confidence, 'une réserve est attendue');
+  assert.match(confidence, /orage/i);
+  assert.match(confidence, /un modèle sur cinq/i);
+});
+
+test('plusieurs modèles dissidents s’accordent au pluriel', () => {
+  const { confidence } = describe({
+    feelsLikeMin: 12,
+    feelsLikeMax: 12,
+    feelsLikeSpread: 1,
+    conditionDissent: { family: 'snow', code: 73, count: 2, total: 5 },
+  });
+
+  assert.match(confidence, /deux modèles sur cinq annoncent/i);
+  assert.match(confidence, /neige/i);
+});
+
+test('sans avis divergent grave, la réserve reste muette', () => {
+  const calme = describe({ feelsLikeMin: 12, feelsLikeMax: 12, feelsLikeSpread: 1 });
+
+  assert.equal(calme.confidence, null);
+});
+
+test('les deux réserves se cumulent sans se remplacer', () => {
+  // Un désaccord sur la température et un orage minoritaire sont deux
+  // informations distinctes : taire l'une pour dire l'autre serait un choix.
+  const { confidence } = describe({
+    feelsLikeMin: 15,
+    feelsLikeMax: 15,
+    feelsLikeSpread: 4,
+    conditionDissent: { family: 'storm', code: 95, count: 1, total: 5 },
+  });
+
+  assert.match(confidence, /4\s*°C/);
+  assert.match(confidence, /orage/i);
+});
+
+/* --------------------------------------------- la comparaison avec hier */
+
+test('« comme hier » quand l’écart ne changerait rien', () => {
+  const hier = calmDay({ feelsLikeMin: 14, feelsLikeMax: 14 });
+  const aujourdhui = calmDay({ feelsLikeMin: 15, feelsLikeMax: 15 });
+
+  assert.match(versusYesterday(aujourdhui, hier), /comme hier/i);
+});
+
+test('l’écart s’annonce en degrés quand il compte', () => {
+  const hier = calmDay({ feelsLikeMin: 18, feelsLikeMax: 18 });
+  const aujourdhui = calmDay({ feelsLikeMin: 13, feelsLikeMax: 13 });
+
+  const phrase = versusYesterday(aujourdhui, hier);
+  assert.match(phrase, /5\s*°C/);
+  assert.match(phrase, /moins/i);
+});
+
+test('le sens de l’écart se dit', () => {
+  const hier = calmDay({ feelsLikeMin: 12, feelsLikeMax: 12 });
+  const aujourdhui = calmDay({ feelsLikeMin: 18, feelsLikeMax: 18 });
+
+  assert.match(versusYesterday(aujourdhui, hier), /plus/i);
+});
+
+test('sans veille, on ne compare pas', () => {
+  // Le premier lancement, ou une API qui ne rend pas le passé.
+  assert.equal(versusYesterday(calmDay({ feelsLikeMin: 15 }), null), null);
+});
+
+test('la comparaison porte sur le point d’habillage, pas sur le maximum', () => {
+  // Deux journées de même maximum mais d'amplitude opposée ne s'habillent pas
+  // pareil : c'est le matin qu'on sort.
+  const hier = calmDay({ feelsLikeMin: 18, feelsLikeMax: 18 });
+  const aujourdhui = calmDay({ feelsLikeMin: 8, feelsLikeMax: 18 });
+
+  assert.match(versusYesterday(aujourdhui, hier), /moins/i);
 });

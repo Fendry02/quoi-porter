@@ -8,7 +8,9 @@
  * deux plateformes.
  */
 
-import { describeDay } from './phrasing.js';
+import { placeDate } from './hours.js';
+import { laterAdvice } from './moments.js';
+import { describeDay, versusYesterday } from './phrasing.js';
 import { buildOutfit } from './rules.js';
 
 const WEEK_LENGTH = 7;
@@ -33,23 +35,51 @@ function dayLabel(date, isToday) {
  *
  * @param {object[]} forecast les DayWeather normalisés par weather.js
  * @param {Date} at instant de consultation, pour situer les alertes horaires
+ * @param {string|null} [profile] le vestiaire de qui lit, quand il l'a précisé
  * @returns {object[]} journées de l'app, de la plus proche à la plus lointaine
  */
-export function buildWeek(forecast, at = new Date()) {
+export function buildWeek(forecast, at = new Date(), profile = null) {
   if (!Array.isArray(forecast)) return [];
 
-  return forecast.slice(0, WEEK_LENGTH).map((weather, index) => {
-    const outfit = buildOutfit(weather);
+  const depart = todayIndex(forecast, at);
+  const veille = forecast[depart - 1] ?? null;
+
+  return forecast.slice(depart, depart + WEEK_LENGTH).map((weather, index) => {
+    const outfit = buildOutfit(weather, profile);
+    const isToday = index === 0;
 
     return {
       id: weather.date,
-      isToday: index === 0,
-      label: dayLabel(weather.date, index === 0),
+      isToday,
+      label: dayLabel(weather.date, isToday),
       weather,
       outfit,
-      phrasing: describeDay(weather, outfit, at),
+      phrasing: {
+        ...describeDay(weather, outfit, at),
+        // Seul aujourd'hui se compare à la veille, et seul aujourd'hui a une
+        // suite : « 3 °C de moins qu'hier » ou « prends une veste pour ce soir »
+        // sous un titre JEUDI ne voudraient rien dire.
+        versusYesterday: isToday ? versusYesterday(weather, veille) : null,
+        later: isToday ? laterAdvice(weather, outfit, at) : null,
+      },
     };
   });
+}
+
+/**
+ * Où commence aujourd'hui dans la prévision.
+ *
+ * On le cherche par sa date au lieu de supposer l'entrée 0 : dès qu'on demande
+ * la veille pour comparer, elle arrive en tête et la supposition devient fausse.
+ * Introuvable — prévision périmée, fuseau qui décale — on repart du premier jour
+ * connu, car un écran vide serait pire qu'un jour décalé.
+ */
+function todayIndex(forecast, at) {
+  const offset = forecast[0]?.utcOffsetSeconds ?? 0;
+  const aujourdhui = placeDate(at, offset);
+  const trouve = forecast.findIndex((weather) => weather.date === aujourdhui);
+
+  return trouve >= 0 ? trouve : 0;
 }
 
 /**
