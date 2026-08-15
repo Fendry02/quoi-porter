@@ -94,3 +94,129 @@ test('le shader du ciel compile sous Skia', async (t) => {
 
   effect.delete();
 });
+
+const SIZE = 256;
+
+/**
+ * Les uniformes, dans l'ordre où le shader les déclare — c'est l'ordre qu'attend
+ * `makeShader`, qui ne reçoit qu'un tableau de flottants sans les noms.
+ *
+ * Un ciel de plein midi sous une couche épaisse, l'astre haut : le cas où les
+ * rayons se voient le plus. Seule la pluie change d'un tirage à l'autre.
+ */
+function uniforms(precipIntensity) {
+  return [
+    SIZE, SIZE,        // u_resolution
+    0,                 // u_time
+    0.18, 0.25, 0.29,  // u_zenith
+    0.42, 0.50, 0.54,  // u_horizon
+    1,                 // u_sunHeight
+    0.28,              // u_sunIntensity
+    0,                 // u_starDensity
+    0.85,              // u_cloudCover
+    0.4,               // u_cloudSpeed
+    0.5,               // u_turbulence
+    0.38,              // u_haze
+    precipIntensity,   // u_precipIntensity
+    0,                 // u_precipIsSnow
+    0,                 // u_flash
+    0.3,               // u_wind
+    0.5,               // u_heat
+    0.1,               // u_moonPhase
+    0,                 // u_scroll
+    0,                 // u_dawn
+  ];
+}
+
+/** Luminance perçue de chaque pixel du tirage. */
+function render(CanvasKit, effect, precipIntensity) {
+  const surface = CanvasKit.MakeSurface(SIZE, SIZE);
+  const paint = new CanvasKit.Paint();
+  const shader = effect.makeShader(uniforms(precipIntensity));
+
+  paint.setShader(shader);
+  surface.getCanvas().drawPaint(paint);
+
+  const pixels = surface.makeImageSnapshot().readPixels(0, 0, {
+    width: SIZE,
+    height: SIZE,
+    colorType: CanvasKit.ColorType.RGBA_8888,
+    alphaType: CanvasKit.AlphaType.Unpremul,
+    colorSpace: CanvasKit.ColorSpace.SRGB,
+  });
+
+  const luma = new Float64Array(SIZE * SIZE);
+  for (let i = 0; i < SIZE * SIZE; i += 1) {
+    const o = i * 4;
+    luma[i] = (0.2126 * pixels[o] + 0.7152 * pixels[o + 1] + 0.0722 * pixels[o + 2]) / 255;
+  }
+
+  shader.delete();
+  paint.delete();
+  surface.delete();
+  return luma;
+}
+
+/** Le plus grand écart de luminance entre deux tirages de même taille. */
+function ecartMax(a, b) {
+  let max = 0;
+  for (let i = 0; i < a.length; i += 1) max = Math.max(max, Math.abs(a[i] - b[i]));
+  return max;
+}
+
+/**
+ * Le soleil ne perce pas l'averse.
+ *
+ * Mesurer les rayons dans l'image finie s'est révélé impossible à faire
+ * honnêtement : le halo de l'astre et les nuages éclairés pèsent, dans la
+ * région où les rayons vivent, bien plus lourd qu'eux. Une mesure qui les
+ * englobe ne bouge presque pas quand les rayons disparaissent, et ne prouve
+ * donc rien.
+ *
+ * On compare donc le shader à lui-même privé de son garde-fou. C'est la seule
+ * différence entre les deux sources, donc tout écart entre les deux images lui
+ * est imputable — et l'absence d'écart aussi.
+ */
+test('le soleil ne lance pas de rayons à travers la pluie qui tombe', async (t) => {
+  if (!fs.existsSync(CANVASKIT)) {
+    t.skip('canvaskit-wasm absent — lancer npm install dans apps/mobile');
+    return;
+  }
+
+  const CanvasKitInit = require(CANVASKIT);
+  const CanvasKit = await CanvasKitInit({
+    locateFile: (file) => path.join(CANVASKIT_DIR, file),
+  });
+
+  const source = shaderSource();
+  const sansGardeFou = source.replace('(1.0 - u_precipIntensity)', '1.0');
+
+  assert.notEqual(
+    sansGardeFou,
+    source,
+    'le garde-fou `(1.0 - u_precipIntensity)` a disparu du calcul des rayons',
+  );
+
+  const avec = CanvasKit.RuntimeEffect.Make(source, () => {});
+  const sans = CanvasKit.RuntimeEffect.Make(sansGardeFou, () => {});
+  assert.ok(avec && sans, 'le shader ne compile pas');
+
+  // Par temps sec, le garde-fou vaut 1 : il ne doit rien coûter du tout. Un
+  // ciel dégagé rendu autrement serait une régression silencieuse sur l'image
+  // que voit la plupart des gens.
+  assert.equal(
+    ecartMax(render(CanvasKit, avec, 0), render(CanvasKit, sans, 0)),
+    0,
+    'le garde-fou modifie un ciel sec, où il ne devrait rien faire',
+  );
+
+  // Sous l'averse, il doit au contraire se voir franchement.
+  const sousLAverse = ecartMax(render(CanvasKit, avec, 1), render(CanvasKit, sans, 1));
+  assert.ok(
+    sousLAverse > 0.05,
+    `le garde-fou n'éteint pas les rayons sous l'averse : écart ${sousLAverse.toFixed(4)}`,
+  );
+
+  avec.delete();
+  sans.delete();
+});

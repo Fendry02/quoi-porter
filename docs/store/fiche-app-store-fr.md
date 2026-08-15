@@ -214,21 +214,38 @@ La navigation passe par l'arbre d'accessibilité plutôt que par des coordonnée
 tous les éléments de l'écran sont correctement étiquetés, `idb ui describe-all` les liste
 avec leurs positions, et `idb ui tap x y` suit.
 
-Série retenue, dans cet ordre (le nom du fichier fait l'ordre d'affichage) :
+Série en place, dans cet ordre (le nom du fichier fait l'ordre d'affichage) :
 
-1. La tenue du jour — l'écran d'ouverture, le cœur du produit
-2. Un jour de pluie — montre que le conseil change vraiment
-3. La bande des sept jours
-4. Un aveu d'incertitude affiché
-5. Le widget sur l'écran d'accueil
+1. `01-tenue-du-jour.png` — Ajaccio, dim. 16 août, ciel dégagé. L'écran d'ouverture.
+2. `02-jour-de-pluie.png` — Ajaccio, lun. 17 août. Le conseil change : parapluie.
+3. `03-detail-et-incertitude.png` — le déroulé, jusqu'à l'aveu de désaccord entre modèles.
 
-**À faire le matin.** Le ciel suit l'heure : capturé le soir, tout le jeu ressort nocturne,
-et une fiche entièrement grise vend mal une app qui parle de s'habiller le matin.
+Trois suffisent : Apple en demande trois au minimum. Il manque encore le widget sur
+l'écran d'accueil, qui reste à prendre à la main — le mode édition de l'écran d'accueil
+ne s'ouvre pas de façon fiable depuis `idb`.
+
+**Une seule ville pour toute la série.** Ajaccio, parce qu'elle offrait le jour dégagé
+et le jour de pluie dans la même semaine. Toutes les captures sont en données réelles,
+aucune n'est mise en scène.
+
+**Un jour futur se photographie très bien.** `momentFor()` représente un autre jour à son
+midi solaire, pas à l'heure courante : la capture d'ouverture montre donc dimanche en
+plein soleil, prise un samedi matin. Inutile d'attendre le bon jour pour le bon ciel.
+
+**Laisser le ciel se poser avant de déclencher.** Changer de jour lance un fondu entre les
+deux ambiances *et* redessine la courbe. Une capture prise dans la foulée du tap attrape
+le mélange : ciel bleu de la veille sous la pluie du lendemain, rayons démesurés, courbe à
+moitié tracée. Enchaîner tap et `screenshot` dans la même commande suffit à rater le
+cliché — il faut deux appels séparés.
 
 **À vérifier à l'œil avant d'envoyer.** Le ciel est un shader Skia. S'il ne compile pas,
 `js/sky.js` renvoie un repli uni — repérable sur une capture, parce que le dégradé
 disparaît. Mais une erreur plus fine dans le shader donnerait une image plausible et
 fausse : un coup d'œil humain reste nécessaire.
+
+**Le clavier du simulateur est en AZERTY.** `idb ui text` tape à travers la disposition
+active : « Ajaccio » arrive en « Qjqccio » et la recherche de ville ne trouve rien.
+Vérifier l'`AXValue` du champ avant de lancer la recherche.
 
 ---
 

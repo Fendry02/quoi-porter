@@ -147,7 +147,12 @@ half4 main(float2 fragCoord) {
   // 2b. Les rayons crépusculaires. L'angle module trois sinusoïdes de périodes
   //     entières : elles se referment exactement sur un tour, là où du bruit
   //     laisserait une couture visible sur l'axe du soleil.
-  if (sunLit > 0.06) {
+  //     Il faut des nuages pour qu'un rayon se dessine, mais il faut aussi que
+  //     le soleil perce : sous l'averse il ne perce plus. Une ondée laisse
+  //     encore passer ses traits — c'est le ciel des pluies de soleil — une
+  //     pluie franche les éteint tout à fait.
+  float perce = sunLit * (1.0 - u_precipIntensity);
+  if (perce > 0.06) {
     float2 sd = float2(uv.x * aspect, uv.y) - float2(sunPos.x * aspect, sunPos.y);
     float ang = atan(sd.y, sd.x);
     float rad = length(sd);
@@ -157,7 +162,7 @@ half4 main(float2 fragCoord) {
                + 0.38 * sin(ang * 29.0 + u_time * 0.13);
 
     float rays = smoothstep(0.55, 1.45, beam) * exp(-rad * 1.7);
-    color += float3(1.0, 0.94, 0.82) * rays * sunLit * (0.20 + 0.55 * u_cloudCover);
+    color += float3(1.0, 0.94, 0.82) * rays * perce * (0.20 + 0.55 * u_cloudCover);
   }
 
   // 3. Les étoiles ne sortent que d'un ciel dégagé, et jamais près du sol.
