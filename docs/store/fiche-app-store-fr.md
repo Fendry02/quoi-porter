@@ -82,25 +82,28 @@ météo,vêtements,habits,pluie,froid,quoi mettre,s'habiller,prévisions,widget,
 
 | Champ | Valeur |
 |---|---|
-| URL de support | `https://bbenoit.fr/quoiporter/support.html` |
-| URL de politique de confidentialité | `https://bbenoit.fr/quoiporter/confidentialite.html` |
+| URL de support | `https://www.bbenoit.fr/quoiporter/support` |
+| URL de politique de confidentialité | `https://www.bbenoit.fr/quoiporter/confidentialite` |
 | URL marketing | facultatif — laisser vide |
 
-Les deux pages sont écrites et prêtes à publier : `site/quoiporter/` à la racine du repo
-(`support.html`, `confidentialite.html`, `page.css`). Copie le dossier `quoiporter/` à la
-racine de ce que sert `bbenoit.fr` et les URL ci-dessus fonctionnent telles quelles.
+Les deux pages vivent dans le portfolio, en routes Next : `app/quoiporter/support/page.tsx`
+et `app/quoiporter/confidentialite/page.tsx` du dépôt `portfolio`. Elles reprennent le
+style du site et son adresse de contact, prise dans `siteConfig` — une seule source, donc
+rien à resynchroniser à la main le jour où l'adresse change.
 
-Deux remarques :
+Trois remarques :
 
 - Apple n'exige **aucune** correspondance entre le domaine et le nom de l'app. Une page
   qui parle de QuoiPorter et donne un contact valide passe l'examen, même sur un domaine
   personnel sans rapport.
-- L'extension `.html` est explicite exprès : ça marche sur n'importe quel hébergement
-  statique, sans règle de réécriture.
+- La forme canonique est `www.bbenoit.fr`. L'apex redirige bien vers elle en 200, mais
+  autant donner à Apple l'URL finale plutôt qu'une redirection.
+- Les deux pages sont en `noindex`, comme les autres pages légales du site : elles doivent
+  être atteignables, pas référencées.
 
-**À vérifier avant d'envoyer** : j'ai utilisé `contact@bbenoit.fr` comme adresse de
-support dans les deux pages, par déduction du domaine. Si ce n'est pas la bonne, remplace-la
-— App Review teste réellement le lien.
+**L'adresse de support est `bruy.benoit@gmail.com`.** Le premier jet utilisait
+`contact@bbenoit.fr`, déduite du domaine — mais `bbenoit.fr` n'a aucun enregistrement MX,
+cette adresse ne reçoit rien. App Review teste réellement le lien, ça n'aurait pas passé.
 
 ---
 
@@ -138,8 +141,8 @@ pas de coordonnées.
 
 ## Politique de confidentialité
 
-Déjà écrite et mise en page : `site/quoiporter/confidentialite.html`. Le texte brut ci-dessous
-sert de référence si tu dois la recopier ailleurs (Android, site tiers).
+Déjà écrite et mise en page dans le portfolio. Le texte brut ci-dessous sert de référence
+si tu dois la recopier ailleurs (Android, site tiers).
 
 ```
 Politique de confidentialité — QuoiPorter
@@ -168,9 +171,9 @@ L'app ne s'adresse pas spécifiquement aux enfants et ne collecte sciemment
 aucune donnée les concernant.
 
 Contact
-contact@bbenoit.fr
+bruy.benoit@gmail.com
 
-Dernière mise à jour : 14 août 2026
+Dernière mise à jour : 15 août 2026
 ```
 
 ---
