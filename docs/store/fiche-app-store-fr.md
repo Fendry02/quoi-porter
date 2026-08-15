@@ -219,10 +219,12 @@ Série en place, dans cet ordre (le nom du fichier fait l'ordre d'affichage) :
 1. `01-tenue-du-jour.png` — Ajaccio, dim. 16 août, ciel dégagé. L'écran d'ouverture.
 2. `02-jour-de-pluie.png` — Ajaccio, lun. 17 août. Le conseil change : parapluie.
 3. `03-detail-et-incertitude.png` — le déroulé, jusqu'à l'aveu de désaccord entre modèles.
+4. `04-widget.png` — « Tenue du jour » sur l'écran d'accueil, alimenté par l'app group.
 
-Trois suffisent : Apple en demande trois au minimum. Il manque encore le widget sur
-l'écran d'accueil, qui reste à prendre à la main — le mode édition de l'écran d'accueil
-ne s'ouvre pas de façon fiable depuis `idb`.
+Le widget se pose à la main : le mode édition de l'écran d'accueil ne s'ouvre pas de façon
+fiable depuis `idb`, et un clic maintenu automatisé ouvre le menu contextuel d'une icône
+au lieu de faire trembler l'écran. Une fois le widget en place, la capture se prend
+normalement.
 
 **Une seule ville pour toute la série.** Ajaccio, parce qu'elle offrait le jour dégagé
 et le jour de pluie dans la même semaine. Toutes les captures sont en données réelles,
