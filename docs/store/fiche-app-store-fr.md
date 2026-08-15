@@ -270,6 +270,14 @@ Le script réserve chaque emplacement, pousse les octets, puis **confirme avec l
 MD5** — sauter cette confirmation laisse une capture fantôme, visible dans la fiche mais
 jamais publiée.
 
+**Le jeu s'appelle `APP_IPHONE_67`, pas `APP_IPHONE_69`.** L'interface d'App Store Connect
+parle de « 6,9 pouces », mais la constante de l'API n'a jamais suivi ce renommage : il
+n'existe aucun `APP_IPHONE_69` et l'API répond 409 en listant les valeurs admises. Le jeu
+6,7 accepte les deux tailles, le 1290 × 2796 comme le 1320 × 2868.
+
+Envoi du 15 août 2026 vérifié auprès de l'API : les quatre captures sont en `COMPLETE`,
+en 1320 × 2868, sans erreur ni alerte.
+
 Ce qu'il lui faut :
 
 | | |

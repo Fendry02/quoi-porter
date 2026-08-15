@@ -26,8 +26,15 @@ import { basename, join } from 'node:path';
 
 const API = 'https://api.appstoreconnect.apple.com/v1';
 
-/** Le seul type d'écran qu'Apple exige encore pour un iPhone : le 6,9 pouces. */
-const DISPLAY_TYPE = 'APP_IPHONE_69';
+/**
+ * Le seul jeu de captures qu'Apple exige encore pour un iPhone.
+ *
+ * L'interface d'App Store Connect l'appelle « 6,9 pouces », mais la constante
+ * de l'API est restée `APP_IPHONE_67` — il n'existe pas de `APP_IPHONE_69`,
+ * l'API la refuse en 409. Le jeu 6,7 accepte les deux tailles, le 1290 × 2796
+ * comme le 1320 × 2868 que sort l'iPhone 17 Pro Max.
+ */
+const DISPLAY_TYPE = 'APP_IPHONE_67';
 
 /** Les états d'une version qu'on a encore le droit de modifier. */
 const EDITABLE = new Set([
