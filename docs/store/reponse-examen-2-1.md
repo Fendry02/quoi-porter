@@ -138,14 +138,21 @@ Le mot d'accompagnement, dans le Resolution Center, avant le bloc :
 ```
 Hello,
 
-Thank you for the review. A screen recording captured on a physical iPhone 17
-running iOS 26.6 is attached. It begins with the app launch and shows the
-first-run wardrobe question, the location permission prompt, today's outfit, the
-7-day rail, the city search, the wardrobe setting, and adding the Home Screen
-widget.
+Thank you for the review. A screen recording is attached. It begins with the app
+launch and shows the first-run wardrobe question, the location permission prompt,
+today's outfit for Paris, the hourly detail, a rainy day where the recommendation
+changes to a raincoat and umbrella along with the forecast-uncertainty note, a city
+search for Oslo with the outfit adapting to 13 °C, and the wardrobe setting.
 
-The information you requested follows, and has also been added to the Notes
-field of the App Review Information section for future submissions.
+One point in the interest of full transparency: this recording was captured on the
+iPhone 17 simulator running iOS 26.5, not on a physical device. The Home Screen
+widget is therefore not shown, because the widget gallery does not populate in the
+simulator. The app itself has been tested on a physical iPhone 17 running iOS 26.6,
+widget included. If a recording made on the physical device is required, please let
+us know and we will provide one.
+
+The information you requested follows, and has also been added to the Notes field of
+the App Review Information section for future submissions.
 
 Kind regards,
 Benoit Bruynbroeck
