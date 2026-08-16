@@ -84,10 +84,17 @@ float fbm2(float2 p) {
   return 0.64 * valueNoise(p) + 0.28 * valueNoise(p * 2.03 + 17.0);
 }
 
-/** Une nappe de pluie : des colonnes qui défilent, chacune avec sa phase. */
+/**
+ * Une nappe de pluie : des colonnes qui défilent, chacune avec sa phase.
+ *
+ * L'inclinaison suit les rafales. Elle était fixe, si bien qu'une bourrasque à
+ * 70 km/h faisait tomber la pluie aussi droit qu'une bruine — le vent se lisait
+ * dans les traînées d'air et pas dans ce qui tombe, ce qui est l'inverse de ce
+ * qu'on voit par la fenêtre.
+ */
 float rainLayer(float2 uv, float scale, float speed, float seedOffset) {
   float2 p = float2(uv.x * scale, uv.y);
-  p.x += uv.y * 0.25;
+  p.x += uv.y * (0.25 + u_wind * 1.7);
 
   float column = floor(p.x);
   float phase = hash21(float2(column, seedOffset));
@@ -203,26 +210,39 @@ half4 main(float2 fragCoord) {
   //     le soleil perce : sous l'averse il ne perce plus. Une ondée laisse
   //     encore passer ses traits — c'est le ciel des pluies de soleil — une
   //     pluie franche les éteint tout à fait.
-  float perce = sunLit * (1.0 - u_precipIntensity);
-  if (perce > 0.06) {
+  //
+  //     Les nuages sont désormais une vraie condition et non un simple bonus.
+  //     Un ciel parfaitement dégagé recevait 0,20 de rayons : il n'en existe
+  //     pas dehors, et à l'écran ils dominaient tout, jusqu'à ce que le fond
+  //     ressemble moins à un ciel qu'à un halo d'objectif. Leurs périodes ont
+  //     baissé dans la foulée — moins de traits, plus larges, comme la lumière
+  //     qui passe entre deux masses plutôt qu'un soleil d'affiche.
+  float perce = sunLit * (1.0 - u_precipIntensity) * smoothstep(0.05, 0.45, u_cloudCover);
+  if (perce > 0.02) {
     float2 sd = float2(uv.x * aspect, uv.y) - float2(sunPos.x * aspect, sunPos.y);
     float ang = atan(sd.y, sd.x);
     float rad = length(sd);
 
-    float beam = sin(ang * 9.0 + u_time * 0.11)
-               + 0.62 * sin(ang * 17.0 - u_time * 0.07)
-               + 0.38 * sin(ang * 29.0 + u_time * 0.13);
+    float beam = sin(ang * 5.0 + u_time * 0.11)
+               + 0.62 * sin(ang * 11.0 - u_time * 0.07)
+               + 0.38 * sin(ang * 19.0 + u_time * 0.13);
 
-    float rays = smoothstep(0.55, 1.45, beam) * exp(-rad * 1.7);
-    color += float3(1.0, 0.94, 0.82) * rays * perce * (0.20 + 0.55 * u_cloudCover);
+    float rays = smoothstep(0.45, 1.55, beam) * exp(-rad * 2.8);
+    color += float3(1.0, 0.94, 0.82) * rays * perce * (0.10 + 0.42 * u_cloudCover);
   }
 
   // 3. Les étoiles ne sortent que d'un ciel dégagé, et jamais près du sol.
+  //
+  //    Le tirage se fait par cellule de trois pixels, mais l'éclat suit la
+  //    position *dans* la cellule : sans cela, ses neuf pixels reçoivent la même
+  //    valeur et l'étoile est un petit carré. À trois pixels de côté, sur un
+  //    écran qu'on tient à trente centimètres, cela se voit.
   if (u_starDensity > 0.01) {
     float2 grid = fragCoord / 3.0;
     float seed = hash21(floor(grid));
     float twinkle = 0.6 + 0.4 * sin(u_time * 2.0 + seed * 60.0);
-    float star = smoothstep(0.9965, 1.0, seed) * twinkle;
+    float rond = smoothstep(0.5, 0.05, length(fract(grid) - 0.5));
+    float star = smoothstep(0.9965, 1.0, seed) * twinkle * rond;
     color += float3(1.0) * star * u_starDensity * (1.0 - uv.y);
   }
 
@@ -279,22 +299,85 @@ half4 main(float2 fragCoord) {
     color += moonColor * (disc * lit + halo) * moonVisible;
   }
 
-  // 4. Les nuages : deux nappes déformées par le vent, à des vitesses
-  //    différentes, pour que le ciel ne défile pas d'un bloc.
-  float drift = u_time * (0.02 + u_cloudSpeed * 0.06);
-  float2 cuv = uv + float2(0.0, par * 0.16);
-  float2 warp = float2(fbm(cuv * 3.0 + drift * 0.5), fbm(cuv * 3.0 - drift * 0.4));
+  // 4. Les nuages.
+  //
+  //    La dérive est retranchée des coordonnées avant toute mise à l'échelle :
+  //    les deux nappes et la déformation en héritent donc ensemble, et le ciel
+  //    traverse l'écran. Chacune glissait auparavant à sa propre vitesse, si
+  //    bien que le champ bouillonnait sur place au lieu d'avancer — un
+  //    frémissement, jamais un passage de nuages.
+  //
+  //    L'évolution, elle, ne touche que la déformation, et dix fois plus
+  //    lentement : c'est ce qui fait qu'un nuage se refait en avançant sans
+  //    qu'on puisse dire à quel moment il a changé.
+  float drift = u_time * (0.004 + u_cloudSpeed * 0.014);
+  float evolve = u_time * 0.010;
+  float2 cuv = uv + float2(0.0, par * 0.16) - float2(drift, 0.0);
+
+  //    L'échelle est celle d'origine. Agrandir les masses semblait devoir
+  //    aider — on voit peu de ciel sur un téléphone — mais au-delà, les quatre
+  //    octaves ne suffisent plus à border la forme : le nuage devient une
+  //    découpe plate. La finesse du bord tient au rapport entre l'échelle et le
+  //    nombre d'octaves, pas à l'une des deux seule.
+  float2 warp = float2(fbm(cuv * 3.0 + evolve), fbm(cuv * 3.0 - evolve + 11.0));
   float2 cp = cuv * float2(2.2, 3.4) + warp * (0.12 + u_turbulence * 0.35);
 
-  float clouds = mix(fbm(cp + float2(drift, 0.0)), fbm(cp * 1.7 + float2(drift * 1.9, 0.0)), 0.45);
+  float brut = mix(fbm(cp), fbm(cp * 1.7 + 3.1), 0.45);
 
-  // La couverture décide du seuil : un ciel dégagé n'en laisse passer aucun.
-  float edge = mix(0.85, 0.18, u_cloudCover);
-  float mask = smoothstep(edge, edge + 0.28, clouds) * smoothstep(1.0, 0.45, cuv.y);
+  //    Un fbm de bruit de valeur ne parcourt pas [0, 1] : ses quatre octaves se
+  //    moyennent autour de 0,47 et le champ tient en réalité entre 0,22 et
+  //    0,62. Les seuils, eux, étaient réglés comme s'il allait de zéro à un.
+  //    Conséquence mesurée : à 38 % de couverture, 2 % de l'écran passait le
+  //    seuil — aucun nuage visible ; à 82 %, 89 % le passait — un aplat sans
+  //    forme. Aucune couverture ne donnait de vrais nuages. On ramène donc le
+  //    champ sur [0, 1] avant d'en juger, et les seuils redeviennent lisibles.
+  float clouds = clamp((brut - 0.22) / 0.40, 0.0, 1.0);
 
-  float3 lit = mix(float3(0.32, 0.35, 0.40), float3(1.0, 0.99, 0.96),
-                   clamp(sunLit + 0.35, 0.0, 1.0));
-  color = mix(color, lit, mask * (0.35 + 0.5 * u_cloudCover));
+  //    Le fondu reste serré : c'est lui qui donne un bord au nuage. Étalé sur
+  //    0,28 alors que le champ n'en parcourait que 0,40, il noyait toute forme
+  //    dans un voile.
+  float edge = mix(1.02, 0.02, u_cloudCover);
+  float mask = smoothstep(edge, edge + 0.15, clouds) * smoothstep(0.95, 0.28, cuv.y);
+
+  //    L'éclat d'un nuage tient à la lumière qui l'atteint, donc à la couche
+  //    qui le surplombe : un cumulus isolé est éclatant, la base d'un ciel
+  //    d'averse est sombre. La rampe précédente allait du gris au blanc sans
+  //    tenir compte de la couverture, et peignait donc des nuages *plus clairs*
+  //    que le ciel de pluie derrière eux — des sommets enneigés au-dessus d'un
+  //    orage, exactement l'inverse de ce qu'on voit lever les yeux.
+  float eclat = clamp(sunLit * (1.0 - 0.75 * u_cloudCover) + 0.12, 0.0, 1.0);
+
+  //    Le côté sombre est pris sur le ciel lui-même plutôt que sur un gris
+  //    absolu : le nuage appartient à l'ambiance du jour, il ne se pose pas
+  //    dessus.
+  float3 lit = mix(u_zenith * 0.85, float3(1.0, 0.99, 0.96), eclat);
+
+  //    Le ventre du nuage est plus sombre que ses bords. Sans cette nuance, un
+  //    ciel couvert n'a aucun relief : il est couvert d'un seul ton, ce qui
+  //    n'arrive jamais dehors.
+  lit = lit * (1.0 - 0.28 * smoothstep(edge, 1.0, clouds));
+
+  color = mix(color, lit, mask * (0.40 + 0.45 * u_cloudCover));
+
+  // 4a. Le liséré d'argent. Sur le bord tourné vers l'astre, la lumière passe
+  //     au bord du nuage et le contour s'allume. On regarde le champ un pas
+  //     plus loin en direction du soleil : là où il retombe, c'est qu'on est
+  //     sur ce bord-là.
+  //
+  //     La branche porte sur des uniformes, donc elle est prise ou non pour
+  //     l'écran entier : un ciel dégagé et une nuit ne paient pas les deux
+  //     octaves supplémentaires.
+  if (u_cloudCover > 0.12 && sunLit > 0.04) {
+    float2 versSoleil = normalize(float2((sunPos.x - uv.x) * aspect, sunPos.y - uv.y));
+    float2 pas = float2(versSoleil.x / aspect, versSoleil.y) * 0.010;
+    float2 cpv = (cuv + pas) * float2(2.2, 3.4) + warp * (0.12 + u_turbulence * 0.35);
+
+    float brutVoisin = mix(fbm(cpv), fbm(cpv * 1.7 + 3.1), 0.45);
+    float voisin = clamp((brutVoisin - 0.22) / 0.40, 0.0, 1.0);
+
+    float rim = clamp((clouds - voisin) * 7.0, 0.0, 1.0) * mask;
+    color += float3(1.0, 0.96, 0.86) * rim * sunLit * 0.60;
+  }
 
   // 4b. Les ombres de nuages traversent lentement, plus vite que les nuages
   //     eux-mêmes : c'est ce décalage qui donne l'impression d'un relief
@@ -358,6 +441,20 @@ half4 main(float2 fragCoord) {
   // 8. Et le geste de tirer éclaircit l'ensemble, en plus d'avoir relevé
   //    l'astre : sans ça, tirer sur un ciel de nuit ne montrerait rien.
   color += float3(1.0, 0.96, 0.88) * u_dawn * 0.10;
+
+  // 9. Le grain, en tout dernier.
+  //
+  //    Un dégradé aussi doux ne dispose que de huit bits par canal, et se
+  //    découpe donc en marches : jusqu'à trente-sept pixels d'une seule couleur
+  //    au zénith d'une nuit, qu'un écran OLED souligne au lieu de les masquer.
+  //    Un bruit d'un niveau et demi dissout la marche sans jamais se voir
+  //    lui-même. Le dôme du web le fait depuis toujours ; celui-ci ne le
+  //    faisait pas.
+  //
+  //    Renouvelé vingt-quatre fois par seconde et non à chaque image : au
+  //    rythme de l'écran, le grain scintille ; à celui du cinéma, il vit.
+  float grain = hash21(fragCoord + floor(u_time * 24.0)) - 0.5;
+  color += grain * 0.012;
 
   return half4(half3(clamp(color, 0.0, 1.0)), 1.0);
 }
