@@ -180,19 +180,14 @@ Dernière mise à jour : 15 août 2026
 
 ## Notes pour l'examen Apple
 
-```
-Aucun compte n'est nécessaire, l'app est utilisable immédiatement.
+Les quatre paragraphes qui tenaient ici — pas de compte, position facultative,
+Open-Meteo sans clé, le widget — n'ont pas suffi : le premier envoi a été refusé en
+**2.1 Information Needed** le 16 août 2026, Apple réclamant sept renseignements que ce
+champ ne portait pas.
 
-L'autorisation de localisation est facultative. Si vous la refusez, utilisez la
-recherche de ville pour choisir un lieu — toutes les fonctions restent
-accessibles.
-
-Les prévisions viennent de l'API publique Open-Meteo, sans clé ni serveur
-intermédiaire. Une connexion internet est nécessaire au premier chargement.
-
-Le widget « Tenue du jour » s'ajoute depuis l'écran d'accueil iOS et reprend la
-recommandation du jour.
-```
+Le texte qui les couvre tous, et l'enregistrement d'écran demandé avec, sont dans
+[`reponse-examen-2-1.md`](reponse-examen-2-1.md). C'est lui qui va désormais dans le champ
+Notes, et il y tient : 3915 caractères sur les 4000 admis.
 
 ---
 
