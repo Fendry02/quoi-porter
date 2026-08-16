@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { PALETTES } from '../js/sky.js';
 import {
   blendOver,
   conditionLabel,
@@ -83,13 +84,13 @@ test('le voile garde aussi le texte secondaire au-dessus de 3:1', () => {
 
 test('une encre claire appelle un voile sombre, une encre sombre un voile clair', () => {
   assert.equal(veilFor('#dde5f2', ['#0c1327']).color, '#060a14');
-  assert.equal(veilFor('#12293d', ['#cfe4ef']).color, '#ffffff');
+  assert.equal(veilFor('#0b1a28', ['#e0e9ec']).color, '#ffffff');
 });
 
 test('un ciel qui porte déjà bien son encre ne reçoit presque pas de voile', () => {
   // Plein jour dégagé : encre sombre sur un horizon très clair. Le voile ne
   // doit pas venir laver un ciel qui allait très bien.
-  const leger = veilFor('#12293d', ['#4a90c4', '#cfe4ef']);
+  const leger = veilFor('#0b1a28', ['#3d8ecf', '#e0e9ec']);
   const lourd = veilFor('#1b1630', ['#3b4a76', '#f0a878']);
 
   assert.ok(leger.alpha < lourd.alpha, `${leger.alpha} devrait être sous ${lourd.alpha}`);
@@ -97,35 +98,29 @@ test('un ciel qui porte déjà bien son encre ne reçoit presque pas de voile', 
 
 test('chaque état de ciel du produit atteint la cible', () => {
   // La garantie que PRODUCT.md promet : « sufficient contrast in every weather
-  // state ». On la vérifie sur les quinze palettes de js/sky.js.
-  const palettes = [
-    ['clear', '#4a90c4', '#cfe4ef', '#12293d'],
-    ['clear dusk', '#3b4a76', '#f0a878', '#1b1630'],
-    ['clear night', '#0c1327', '#28345a', '#dde5f2'],
-    ['cloudy', '#7d9ab0', '#dfe6ea', '#1c262e'],
-    ['cloudy dusk', '#4a4f6b', '#d99a7e', '#1d1a2c'],
-    ['cloudy night', '#111823', '#2c3746', '#d9dee6'],
-    ['overcast', '#8b959d', '#c8ced3', '#171d22'],
-    ['overcast dusk', '#4f5158', '#9d8a86', '#1a1a1e'],
-    ['overcast night', '#14181c', '#2a3138', '#d2d6da'],
-    ['fog', '#b3b7b2', '#dcded9', '#22261f'],
-    ['fog dusk', '#6e6a68', '#b5a49a', '#1e1c1a'],
-    ['fog night', '#1a1d21', '#33383e', '#ccd0d2'],
-    ['rain', '#2d3f4a', '#6b8089', '#f0f4f6'],
-    ['rain dusk', '#22283c', '#6b5f6e', '#eceef4'],
-    ['rain night', '#0d1119', '#212a35', '#dbe2e8'],
-  ];
+  // state ». On la vérifie sur les palettes de js/sky.js elles-mêmes : la copie
+  // qui vivait ici a fini par décrire un ciel que le produit n'affichait plus.
+  for (const [famille, moments] of Object.entries(PALETTES)) {
+    for (const [moment, { zenith, horizon, ink }] of Object.entries(moments)) {
+      const skies = [zenith, horizon];
+      const veil = veilFor(ink, skies);
 
-  for (const [nom, zenith, horizon, ink] of palettes) {
-    const skies = [zenith, horizon];
-    const veil = veilFor(ink, skies);
-
-    for (const sky of skies) {
-      const fond = blendOver(veil.color, veil.alpha, sky);
-      assert.ok(
-        contrastRatio(ink, fond) >= 4.5,
-        `${nom} sur ${sky} : ${contrastRatio(ink, fond).toFixed(2)}:1 avec un voile de ${veil.alpha}`,
-      );
+      for (const sky of skies) {
+        const fond = blendOver(veil.color, veil.alpha, sky);
+        assert.ok(
+          contrastRatio(ink, fond) >= 4.5,
+          `${famille} ${moment} sur ${sky} : ${contrastRatio(ink, fond).toFixed(2)}:1 avec un voile de ${veil.alpha}`,
+        );
+      }
     }
   }
+});
+
+test('le grand beau temps ne reçoit aucun voile', () => {
+  // C'est le seul ciel qui en recevait un, et c'était le pire endroit possible :
+  // un film blanc de 10 % posé sur la seule ambiance qui doit éclater. L'encre
+  // a été assombrie jusqu'à rendre le voile inutile — ce test tient la garantie.
+  const { zenith, horizon, ink } = PALETTES.clear.day;
+
+  assert.equal(veilFor(ink, [zenith, horizon]).alpha, 0);
 });

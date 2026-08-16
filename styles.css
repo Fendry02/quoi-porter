@@ -567,16 +567,33 @@ body {
   position: relative;
 }
 
+/*
+ * Plus haut qu'avant : la courbe porte désormais une échelle, et quatre lignes
+ * de niveau sur quarante pixels se seraient touchées. Le tracé y gagne aussi —
+ * un pic de dix degrés se voyait à peine sur une bande aussi basse.
+ */
 .chart__svg {
   display: block;
   width: 100%;
-  height: clamp(2.75rem, 6.5vw, 3.75rem);
+  height: clamp(4.5rem, 11vw, 6rem);
   overflow: visible;
 }
 
 .chart__area {
   fill: currentColor;
   opacity: 0.09;
+}
+
+/*
+ * Les lignes de niveau de l'échelle. Plus pâles que tout le reste du dessin :
+ * elles servent à situer la courbe, jamais à se faire regarder. Le viewBox
+ * étant étiré, seul un trait non mis à l'échelle reste à un pixel.
+ */
+.chart__level {
+  stroke: currentColor;
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1;
+  opacity: 0.14;
 }
 
 /*
@@ -621,6 +638,23 @@ body {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   opacity: 0.75;
+  pointer-events: none;
+}
+
+/*
+ * Les degrés de l'échelle, dans la gouttière de droite. Posés juste après la
+ * fin du tracé et centrés sur leur ligne, ils se lisent comme la légende d'un
+ * repère — sans jamais passer devant la courbe, qui s'arrête avant eux.
+ */
+.chart__level-label {
+  position: absolute;
+  padding-left: 0.4em;
+  font-family: var(--mono);
+  font-size: 0.5625rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateY(-50%);
+  opacity: 0.5;
   pointer-events: none;
 }
 

@@ -69,8 +69,8 @@ function hexToRgb(hex: string): Rgb {
 }
 
 const NEUTRAL: MoodUniforms = {
-  zenith: hexToRgb('#4a90c4'),
-  horizon: hexToRgb('#cfe4ef'),
+  zenith: hexToRgb('#3d8ecf'),
+  horizon: hexToRgb('#e0e9ec'),
   sunHeight: 0.4,
   sunIntensity: 0.4,
   starDensity: 0,
@@ -259,9 +259,9 @@ export function useSkyMood(weather: DayWeather | undefined, at: Date, motion: Mo
     scroll,
     dawn,
     allowed: motion.allowed,
-    ink: mood?.ink ?? '#12293d',
-    horizon: mood?.horizon ?? '#cfe4ef',
-    zenith: mood?.zenith ?? '#4a90c4',
+    ink: mood?.ink ?? '#0b1a28',
+    horizon: mood?.horizon ?? '#e0e9ec',
+    zenith: mood?.zenith ?? '#3d8ecf',
   };
 }
 

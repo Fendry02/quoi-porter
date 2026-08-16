@@ -3,7 +3,7 @@
 Une page qui répond à une seule question, le matin, en quatre secondes : que faut-il porter
 aujourd'hui, et demain ?
 
-![La page à Paris : « T-shirt, short et baskets. Avec des lunettes. »](media/apercu-beau-temps.jpg)
+![La page à Paris : « T-shirt et short. Avec des lunettes. »](media/apercu-beau-temps.jpg)
 
 Le fond est une scène 3D dont le ciel reprend la météo réelle et l'heure du lieu. On fait
 défiler, et la scène se métamorphose sous le doigt pour passer d'aujourd'hui à demain.
@@ -55,13 +55,22 @@ Les modules purs ne touchent ni au réseau ni au DOM : ils sont testés en isola
 réutilisables tels quels par le futur assistant valise.
 
 **La tenue passe avant tout le reste**, et elle est entière : haut, bas, couche extérieure,
-chaussures, puis ce qu'on emporte. C'est la seule chose que la page a promis de dire, donc
-c'est la première et la plus grande. La météo devient sa légende.
+puis ce qu'on emporte. C'est la seule chose que la page a promis de dire, donc c'est la
+première et la plus grande. La météo devient sa légende.
+
+Pas de chaussures : le moteur en tenait un barème complet, et personne n'attendait la page
+pour savoir qu'on met des baskets par 18 °C. La ligne se lisait sans jamais rien changer.
+
+**Jamais plus de quatre pièces**, et la précision se gagne sur les mots. Un palier qui va
+de 25 °C à l'infini donne la même réponse tout l'été : les paliers se resserrent donc là où
+l'on s'habille vraiment, et les pièces portent leur poids — « pull fin » et « pull épais »
+disent lequel sortir sans coûter une ligne de plus. Le reste part dans ce qu'on emporte,
+une casquette et une gourde par forte chaleur, une écharpe dès le frisquet.
 
 Une version précédente noyait les vêtements au milieu d'une phrase météo et en taisait la
 moitié — « ce qui va de soi » — si bien qu'on ne voyait jamais une tenue, seulement des
-fragments : le moteur décidait « t-shirt, pull, jean, imperméable, baskets » et la page
-affichait « pull et imperméable ». On dit désormais tout, même le jean.
+fragments : le moteur décidait « t-shirt, pull, jean, imperméable » et la page affichait
+« pull et imperméable ». On dit désormais tout, même le jean.
 
 **Chaque point d'attention porte son heure**, en tête et en monospace : on parcourt la marge
 gauche et on sait quand les choses arrivent sans lire les phrases. « Il va bien pleuvoir »

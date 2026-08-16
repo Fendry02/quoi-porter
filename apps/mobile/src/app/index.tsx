@@ -54,8 +54,8 @@ const SENTENCE_LINE = 23;
 
 /** Les pièces portées, dans l'ordre où on les enfile. */
 function garmentsOf(day: ForecastDay) {
-  const { top, bottom, outer, feet } = day.outfit.layers;
-  return [...top, bottom, outer, feet].filter(Boolean) as string[];
+  const { top, bottom, outer } = day.outfit.layers;
+  return [...top, bottom, outer].filter(Boolean) as string[];
 }
 
 function capitalize(word: string) {

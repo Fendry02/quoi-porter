@@ -50,6 +50,15 @@ function suppliedUniforms() {
   return new Set([...source.matchAll(/^\s{6}(u_\w+):/gm)].map((m) => m[1]));
 }
 
+test('aucun accent grave ne traîne dans le SkSL', () => {
+  // Le shader vit dans un littéral de gabarit : un accent grave dans un
+  // commentaire — écrire `sunLit` pour désigner l'uniforme — referme la chaîne
+  // au milieu du programme. TypeScript le voit, mais pas ce fichier : la
+  // lecture par expression régulière, elle, s'en accommode très bien et compile
+  // un shader que l'app ne pourra jamais charger.
+  assert.equal(shaderSource().includes('`'), false, 'accent grave dans le SkSL');
+});
+
 test('le pont envoie exactement les uniformes que le shader déclare', () => {
   const declares = declaredUniforms(shaderSource());
   const supplies = suppliedUniforms();

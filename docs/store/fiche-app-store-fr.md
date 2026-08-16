@@ -32,10 +32,10 @@ La bonne tenue, chaque matin
 
 ## Version 1.0.0
 
-**Texte promotionnel** (170 max — 156 utilisés · modifiable sans nouvelle soumission)
+**Texte promotionnel** (170 max — 142 utilisés · modifiable sans nouvelle soumission)
 
 ```
-Chaque matin, la tenue complète pour la météo du jour : les habits, la couche du dessus, les chaussures et ce qu'il faut emporter. Sans compte, sans réglages.
+Chaque matin, la tenue complète pour la météo du jour : les habits, la couche du dessus et ce qu'il faut emporter. Sans compte, sans réglages.
 ```
 
 **Description** (4000 max — ~1180 utilisés)
@@ -47,7 +47,7 @@ Pas un tableau de bord météo. Une tenue complète, écrite en français clair,
 
 CE QUE TU VOIS EN OUVRANT L'APP
 
-La tenue du jour, d'abord. Les habits, la couche du dessus, les chaussures, et ce qu'il vaut mieux emporter. Le détail météo vient après, pour ceux qui veulent comprendre.
+La tenue du jour, d'abord. Les habits, la couche du dessus, et ce qu'il vaut mieux emporter. Le détail météo vient après, pour ceux qui veulent comprendre.
 
 La température ressentie plutôt que le chiffre brut : 8 degrés avec du vent ne s'habillent pas comme 8 degrés au soleil.
 

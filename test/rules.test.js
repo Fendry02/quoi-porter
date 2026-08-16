@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildOutfit, outfitIsRobust } from '../js/rules.js';
+import { buildOutfit, garmentRoot, MAX_PIECES, outfitIsRobust } from '../js/rules.js';
 
 /**
  * Journée plate : le ressenti ne bouge pas de la journée, donc le point
@@ -34,12 +34,16 @@ function calmDay(overrides = {}) {
   };
 }
 
-test('barème de base : canicule — t-shirt seul et short', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 27, feelsLikeMax: 32 }));
+test('barème de base : canicule — la réponse bouge encore au-dessus de 30°', () => {
+  // Le défaut du barème précédent : un seul palier de 25 °C à l'infini, donc la
+  // même tenue tout l'été. Une journée à 34 doit se distinguer d'une à 27.
+  const brulant = buildOutfit(calmDay({ feelsLikeMin: 31, feelsLikeMax: 37 }));
+  const chaud = buildOutfit(calmDay({ feelsLikeMin: 25, feelsLikeMax: 30 }));
 
-  assert.deepEqual(outfit.layers.top, ['t-shirt']);
-  assert.equal(outfit.layers.bottom, 'short');
-  assert.equal(outfit.layers.outer, null);
+  assert.deepEqual(brulant.layers.top, ['t-shirt léger']);
+  assert.deepEqual(chaud.layers.top, ['t-shirt']);
+  assert.equal(brulant.layers.bottom, 'short');
+  assert.equal(chaud.layers.bottom, 'short');
 });
 
 test('barème de base : 22°C — t-shirt et pantalon léger', () => {
@@ -50,55 +54,112 @@ test('barème de base : 22°C — t-shirt et pantalon léger', () => {
   assert.equal(outfit.layers.outer, null);
 });
 
-test('barème de base : 17°C — t-shirt et chemise', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 17 }));
+test('barème de base : 19°C — une chemise légère s’ajoute', () => {
+  const outfit = buildOutfit(flatDay(19));
+
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'chemise légère']);
+  assert.equal(outfit.layers.bottom, 'pantalon léger');
+});
+
+test('barème de base : 16°C — t-shirt et chemise', () => {
+  const outfit = buildOutfit(flatDay(16));
 
   assert.deepEqual(outfit.layers.top, ['t-shirt', 'chemise']);
   assert.equal(outfit.layers.bottom, 'pantalon');
   assert.equal(outfit.layers.outer, null);
 });
 
-test('barème de base : 12°C — pull, mais pas encore de couche extérieure', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 12 }));
+test('barème de base : 13°C — le pull arrive, mais le fin', () => {
+  const outfit = buildOutfit(flatDay(13));
 
-  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull']);
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull fin']);
   assert.equal(outfit.layers.bottom, 'jean');
   assert.equal(outfit.layers.outer, null);
 });
 
+test('barème de base : 10°C — pull franc, pas encore de couche extérieure', () => {
+  const outfit = buildOutfit(flatDay(10));
+
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull']);
+  assert.equal(outfit.layers.outer, null);
+});
+
 test('barème de base : 7°C — pull et veste', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 7 }));
+  const outfit = buildOutfit(flatDay(7));
 
   assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull']);
   assert.equal(outfit.layers.outer, 'veste');
-  assert.equal(outfit.layers.feet, 'baskets');
 });
 
-test('barème de base : 2°C — manteau et chaussures fermées', () => {
-  const outfit = buildOutfit(calmDay({ feelsLikeMin: 2 }));
+test('barème de base : 2°C — pull épais et manteau', () => {
+  const outfit = buildOutfit(flatDay(2));
 
-  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull']);
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull épais']);
   assert.equal(outfit.layers.outer, 'manteau');
-  assert.equal(outfit.layers.feet, 'chaussures fermées');
 });
 
-test('barème de base : sous zéro — sous-couche, gants et bonnet', () => {
+test('barème de base : sous zéro — sous-couche, pantalon doublé, gants et bonnet', () => {
   const outfit = buildOutfit(calmDay({ feelsLikeMin: -4 }));
 
-  assert.deepEqual(outfit.layers.top, ['sous-couche thermique', 't-shirt', 'pull']);
+  assert.deepEqual(outfit.layers.top, ['sous-couche thermique', 'pull épais']);
+  assert.equal(outfit.layers.bottom, 'pantalon doublé');
   assert.equal(outfit.layers.outer, 'manteau');
   assert.ok(outfit.accessories.includes('gants'));
   assert.ok(outfit.accessories.includes('bonnet'));
 });
 
+test('le grand froid se passe du t-shirt : quatre pièces, pas cinq', () => {
+  // Sous une sous-couche thermique il allait de soi, et il faisait déborder la
+  // tenue du seul coup d'œil qu'on est censé lui accorder.
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: -8 }));
+
+  assert.equal(outfit.layers.top.includes('t-shirt'), false);
+});
+
+test('aucune tenue ne dépasse quatre pièces, par aucun temps', () => {
+  // Le plafond est ce qui permet d'affiner le barème sans le transformer en
+  // inventaire : la précision se gagne sur les mots, pas sur la longueur.
+  for (let ressenti = -15; ressenti <= 42; ressenti += 1) {
+    for (const temps of [
+      {},
+      { precipitationProbability: 90, precipitationMm: 9 },
+      { windGustsKmh: 65 },
+      { weatherCode: 71, precipitationProbability: 80, precipitationMm: 5 },
+      { precipitationProbability: 90, precipitationMm: 9, windGustsKmh: 70 },
+    ]) {
+      const { layers } = buildOutfit(flatDay(ressenti, temps));
+      const pieces = [...layers.top, layers.bottom, layers.outer].filter(Boolean);
+
+      assert.ok(
+        pieces.length <= MAX_PIECES,
+        `${ressenti}° ${JSON.stringify(temps)} → ${pieces.length} pièces : ${pieces.join(', ')}`,
+      );
+      assert.ok(pieces.length >= 2, `${ressenti}° ne propose que ${pieces.length} pièce`);
+    }
+  }
+});
+
+test('la réponse bouge assez souvent pour valoir la peine d’être lue', () => {
+  // Le vrai reproche fait au barème précédent : entre 25 et 45 °C il ne
+  // changeait plus jamais d'avis. On compte les tenues distinctes sur la plage
+  // où l'on s'habille vraiment.
+  const tenues = new Set();
+  for (let ressenti = 0; ressenti <= 35; ressenti += 1) {
+    const { layers } = buildOutfit(flatDay(ressenti));
+    tenues.add([...layers.top, layers.bottom, layers.outer].filter(Boolean).join('|'));
+  }
+
+  assert.ok(tenues.size >= 8, `seulement ${tenues.size} tenues distinctes de 0 à 35°`);
+});
+
 test('les bornes du barème sont inclusives par le bas', () => {
-  // 25 appartient au palier canicule, 24,9 au palier en dessous.
+  // 25 appartient au palier du short, 24,9 au palier en dessous.
   assert.equal(buildOutfit(flatDay(25)).layers.bottom, 'short');
   assert.equal(buildOutfit(flatDay(24.9)).layers.bottom, 'pantalon léger');
 
-  // 10 n'a pas encore de couche extérieure, 9,9 en a une.
-  assert.equal(buildOutfit(flatDay(10)).layers.outer, null);
-  assert.equal(buildOutfit(flatDay(9.9)).layers.outer, 'veste');
+  // 9 n'a pas encore de couche extérieure, 8,9 en a une.
+  assert.equal(buildOutfit(flatDay(9)).layers.outer, null);
+  assert.equal(buildOutfit(flatDay(8.9)).layers.outer, 'veste');
 
   // 5 est encore en veste, 4,9 passe au manteau.
   assert.equal(buildOutfit(flatDay(5)).layers.outer, 'veste');
@@ -107,57 +168,31 @@ test('les bornes du barème sont inclusives par le bas', () => {
 
 /* ------------------------------------------------------------- les pieds */
 
-test('les pieds ont leur propre barème, du plus chaud au plus froid', () => {
-  const pieds = (ressenti) => buildOutfit(flatDay(ressenti)).layers.feet;
+test('le moteur ne décide plus des chaussures, par aucun temps', () => {
+  // Le barème des pieds a été retiré : la ligne se lisait sans jamais rien
+  // apprendre à personne. Ce test tient la porte fermée — canicule, gel,
+  // averse et verglas, aucun n'a le droit de ressusciter une chaussure.
+  const temps = [
+    flatDay(31),
+    flatDay(14),
+    flatDay(-6),
+    flatDay(14, { precipitationProbability: 85, precipitationMm: 8 }),
+    flatDay(-2, { weatherCode: 71 }),
+  ];
 
-  assert.equal(pieds(31), 'sandales ou baskets légères');
-  assert.equal(pieds(25), 'baskets légères');
-  assert.equal(pieds(14), 'baskets');
-  assert.equal(pieds(4), 'chaussures fermées');
-  assert.equal(pieds(-6), 'bottines fourrées');
+  for (const jour of temps) {
+    assert.equal(buildOutfit(jour).layers.feet, undefined);
+  }
 });
 
-test('les bornes du barème des pieds sont inclusives par le bas', () => {
-  assert.equal(buildOutfit(flatDay(28)).layers.feet, 'sandales ou baskets légères');
-  assert.equal(buildOutfit(flatDay(27.9)).layers.feet, 'baskets légères');
-  assert.equal(buildOutfit(flatDay(8)).layers.feet, 'baskets');
-  assert.equal(buildOutfit(flatDay(7.9)).layers.feet, 'chaussures fermées');
-});
+test('le conseil des semelles survit dans les alertes', () => {
+  // Ce qui comptait vraiment n'est pas parti avec le barème : le verglas dit
+  // toujours de prendre ce qui accroche, sans lister une paire.
+  const outfit = buildOutfit(flatDay(-2, { weatherCode: 71 }));
+  const ice = outfit.alerts.find((a) => a.kind === 'ice');
 
-test('les pieds ne suivent pas les frontières du reste de la tenue', () => {
-  // C'est tout l'intérêt d'avoir séparé les deux barèmes : à 12 °C le torse a
-  // déjà son pull, les pieds gardent leurs baskets. Un seul tableau donnait le
-  // même mot des pieds de 0 à 40 °C, et la réponse ne bougeait jamais.
-  const doux = buildOutfit(flatDay(12));
-
-  assert.deepEqual(doux.layers.top, ['t-shirt', 'pull']);
-  assert.equal(doux.layers.feet, 'baskets');
-});
-
-test('une averse impose des chaussures étanches', () => {
-  const outfit = buildOutfit(flatDay(14, { precipitationProbability: 50, precipitationMm: 2 }));
-
-  assert.equal(outfit.layers.feet, 'chaussures étanches');
-});
-
-test('une averse qui trempe monte jusqu’aux bottines', () => {
-  const outfit = buildOutfit(flatDay(14, { precipitationProbability: 85, precipitationMm: 8 }));
-
-  assert.equal(outfit.layers.feet, 'bottines étanches');
-});
-
-test('la pluie ne ferme pas les pieds par forte chaleur', () => {
-  // Par 30 °C un pied mouillé sèche ; enfermé dans du caoutchouc étanche, non.
-  const outfit = buildOutfit(flatDay(30, { precipitationProbability: 90, precipitationMm: 10 }));
-
-  assert.equal(outfit.layers.feet, 'sandales ou baskets légères');
-});
-
-test('le mot des pieds ne répète pas celui de la couche extérieure', () => {
-  const outfit = buildOutfit(flatDay(14, { precipitationProbability: 80, precipitationMm: 6 }));
-
-  assert.equal(outfit.layers.outer, 'imperméable');
-  assert.doesNotMatch(outfit.layers.feet, /imperméable/);
+  assert.ok(ice);
+  assert.match(ice.hint, /accrochent/);
 });
 
 /* ------------------------------------------- le point d'habillage pondéré */
@@ -168,7 +203,7 @@ test('la tenue se décide sur le ressenti min plus 40 % de l’amplitude', () =>
   const outfit = buildOutfit(calmDay({ feelsLikeMin: 14, feelsLikeMax: 25 }));
 
   assert.equal(outfit.dressedFor, 18.4);
-  assert.deepEqual(outfit.layers.top, ['t-shirt', 'chemise']);
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'chemise légère']);
   assert.equal(outfit.layers.outer, null);
 });
 
@@ -176,7 +211,7 @@ test('sans amplitude, le point d’habillage vaut le ressenti lui-même', () => 
   const outfit = buildOutfit(flatDay(14));
 
   assert.equal(outfit.dressedFor, 14);
-  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull']);
+  assert.deepEqual(outfit.layers.top, ['t-shirt', 'pull fin']);
 });
 
 test('le biais reste vers le froid : on ne vise jamais le milieu de journée', () => {
@@ -367,28 +402,27 @@ test('UV faible : ni lunettes ni alerte', () => {
   assert.equal(alertOfKind(outfit, 'uv'), undefined);
 });
 
-test('neige : chaussures adhérentes et alerte ice', () => {
+test('neige : alerte ice', () => {
   const outfit = buildOutfit(calmDay({ feelsLikeMin: -2, weatherCode: 73 }));
 
-  assert.equal(outfit.layers.feet, 'chaussures adhérentes');
   assert.ok(alertOfKind(outfit, 'ice'));
 });
 
 test('pluie verglaçante : traitée comme la neige', () => {
   const outfit = buildOutfit(calmDay({ feelsLikeMin: 0, weatherCode: 67 }));
 
-  assert.equal(outfit.layers.feet, 'chaussures adhérentes');
   assert.ok(alertOfKind(outfit, 'ice'));
 });
 
-test('la neige prime sur la pluie pour les chaussures', () => {
+test('averse de neige : l’alerte verglas s’ajoute à celle de neige', () => {
   // Averses de neige (85) avec précipitations : le modificateur pluie passe
-  // avant, mais ce sont bien les chaussures adhérentes qui doivent rester.
+  // avant, et les deux alertes doivent coexister sans que l’une écrase l’autre.
   const outfit = buildOutfit(
     calmDay({ feelsLikeMin: -1, weatherCode: 85, precipitationProbability: 80, precipitationMm: 4 }),
   );
 
-  assert.equal(outfit.layers.feet, 'chaussures adhérentes');
+  assert.ok(alertOfKind(outfit, 'ice'));
+  assert.equal(alertOfKind(outfit, 'rain').label, 'Neige');
   assert.equal(outfit.layers.outer, 'manteau', 'par -1°C on garde le manteau');
 });
 
@@ -450,7 +484,7 @@ test('l’Outfit produit est conforme au contrat', () => {
 
   assert.ok(Array.isArray(outfit.layers.top));
   assert.equal(typeof outfit.layers.bottom, 'string');
-  assert.equal(typeof outfit.layers.feet, 'string');
+  assert.ok(!('feet' in outfit.layers), 'plus de chaussures dans le contrat');
   assert.ok(Array.isArray(outfit.accessories));
   assert.ok(Array.isArray(outfit.alerts));
 
@@ -583,4 +617,76 @@ test('le profil ne change pas le jugement de robustesse', () => {
   // outfitIsRobust compare deux tenues entre elles : le vestiaire choisi doit
   // s'appliquer aux deux ou à aucune, sinon toute journée paraîtrait incertaine.
   assert.equal(outfitIsRobust(flatDay(12, { feelsLikeSpread: 1 })), true);
+});
+
+/* ------------------------------------------------- ce qu'on emporte */
+
+test('la forte chaleur fait emporter de quoi la tenir', () => {
+  // La ligne « Avec… » ne servait qu'au parapluie et aux lunettes : onze mois
+  // sur douze elle restait muette, alors que c'est exactement ce qu'on oublie
+  // en partant.
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 26, feelsLikeMax: 34 }));
+
+  assert.ok(outfit.accessories.includes('casquette'));
+  assert.ok(outfit.accessories.includes('gourde'));
+});
+
+test('l’écharpe sort avant les gants, et les gants avant rien', () => {
+  const frisquet = buildOutfit(calmDay({ feelsLikeMin: 3, feelsLikeMax: 9 }));
+  assert.ok(frisquet.accessories.includes('écharpe'));
+  assert.equal(frisquet.accessories.includes('gants'), false, 'les mains vont encore en poche');
+
+  const gel = buildOutfit(calmDay({ feelsLikeMin: -3, feelsLikeMax: 2 }));
+  assert.ok(gel.accessories.includes('écharpe'));
+  assert.ok(gel.accessories.includes('gants'));
+  assert.ok(gel.accessories.includes('bonnet'));
+});
+
+test('une journée tempérée n’encombre personne', () => {
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 14, feelsLikeMax: 21 }));
+
+  assert.deepEqual(outfit.accessories, []);
+});
+
+test('les accessoires suivent les extrêmes du jour, pas le point d’habillage', () => {
+  // Une matinée à 3 °C qui monte à 24 : on s'habille pour 11, mais l'écharpe se
+  // glisse dans un sac et sert bien au départ.
+  const outfit = buildOutfit(calmDay({ feelsLikeMin: 3, feelsLikeMax: 24 }));
+
+  assert.ok(outfit.dressedFor > 10, 'on ne s’habille pas pour le minimum');
+  assert.ok(outfit.accessories.includes('écharpe'));
+});
+
+/* ------------------------------------- la robustesse et le poids des mots */
+
+test('un pull plus fin n’est pas une autre tenue', () => {
+  // Depuis que le barème qualifie ses pièces, ses frontières sont rapprochées.
+  // Comparer les noms complets faisait crier au désaccord pour un degré, tous
+  // les jours ou presque : « pull » contre « pull fin », le même pull.
+  assert.equal(garmentRoot('pull fin'), 'pull');
+  assert.equal(garmentRoot('pull épais'), 'pull');
+  assert.equal(garmentRoot('t-shirt léger'), 't-shirt');
+  assert.equal(garmentRoot('pantalon doublé'), 'pantalon');
+
+  // 13 °C donne « pull fin », 10 °C donne « pull » : un écart d'un degré à
+  // cheval sur la frontière ne doit alarmer personne.
+  const frontiere = calmDay({
+    feelsLikeMin: 12,
+    feelsLikeMax: 12,
+    feelsLikeSpread: 1,
+  });
+
+  assert.equal(outfitIsRobust(frontiere), true);
+});
+
+test('un désaccord qui change vraiment la tenue reste signalé', () => {
+  // Ce que la règle ne doit surtout pas avaler : franchir la frontière où la
+  // couche extérieure apparaît.
+  const frontiere = calmDay({
+    feelsLikeMin: 9,
+    feelsLikeMax: 9,
+    feelsLikeSpread: 3,
+  });
+
+  assert.equal(outfitIsRobust(frontiere), false);
 });

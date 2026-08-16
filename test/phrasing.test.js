@@ -55,14 +55,14 @@ function withHours(weather, from, to, patch) {
 /* ------------------------------------------------------------- la tenue */
 
 test('la tenue est complète : rien n’est laissé à deviner', () => {
-  // Le moteur décide un haut, un bas, une couche extérieure et des chaussures.
-  // Taire la moitié — comme le faisait la version précédente — obligeait à
-  // deviner comment s'habiller sur une page dont c'est la seule question.
+  // Le moteur décide un haut, un bas et une couche extérieure. Taire la
+  // moitié — comme le faisait la version précédente — obligeait à deviner
+  // comment s'habiller sur une page dont c'est la seule question.
   const weather = calmDay({ feelsLikeMin: 12, precipitationProbability: 80, precipitationMm: 6 });
   const outfit = buildOutfit(weather);
   const { wear } = describeDay(weather, outfit, MATIN);
 
-  for (const piece of [...outfit.layers.top, outfit.layers.bottom, outfit.layers.outer, outfit.layers.feet]) {
+  for (const piece of [...outfit.layers.top, outfit.layers.bottom, outfit.layers.outer]) {
     assert.match(wear.toLowerCase(), new RegExp(piece.toLowerCase()), `« ${piece} » manque`);
   }
 });
@@ -83,16 +83,16 @@ test('sans couche extérieure, la tenue n’en invente pas', () => {
   assert.match(wear, /pantalon/i);
 });
 
-test('les pièces sont énoncées de la tête aux pieds', () => {
-  // On demande sa chaussure au moteur plutôt que de l'écrire ici : le barème
-  // des pieds a plusieurs mots selon le temps, et ce test parle de l'ordre.
+test('les pièces sont énoncées dans l’ordre où on les enfile', () => {
+  // On demande sa couche extérieure au moteur plutôt que de l'écrire ici :
+  // elle a plusieurs mots selon le temps, et ce test parle de l'ordre.
   const weather = calmDay({ feelsLikeMin: 2, precipitationProbability: 80, precipitationMm: 6 });
   const outfit = buildOutfit(weather);
   const { wear } = describeDay(weather, outfit, MATIN);
 
   const rang = (mot) => wear.toLowerCase().indexOf(mot.toLowerCase());
   assert.ok(rang('pull') < rang('jean'), 'le haut avant le bas');
-  assert.ok(rang('jean') < rang(outfit.layers.feet), 'le bas avant les pieds');
+  assert.ok(rang('jean') < rang(outfit.layers.outer), 'le bas avant la couche du dessus');
 });
 
 /* --------------------------------------------------------- à emporter */

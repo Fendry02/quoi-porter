@@ -80,7 +80,6 @@ export type Outfit = {
     top: string[];
     bottom: string;
     outer: string | null;
-    feet: string;
   };
   accessories: string[];
 };
@@ -144,6 +143,14 @@ export type TimelineGeometry = {
   band: string | null;
   bars: { x: number; y: number; width: number; height: number; hour: number; probability: number }[];
   ticks: { x: number; hour: number; label: string | null }[];
+  /**
+   * L'échelle des ordonnées. `x` est l'abscisse où le tracé s'arrête : au-delà
+   * commence la gouttière où se posent les degrés et le mot de la pluie.
+   */
+  scale: {
+    x: number;
+    degrees: { value: number; y: number; label: string }[];
+  };
   peak: { x: number; y: number; hour: number; label: string };
   range: { min: number; max: number };
 };

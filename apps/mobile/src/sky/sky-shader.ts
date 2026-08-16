@@ -134,15 +134,67 @@ half4 main(float2 fragCoord) {
   //     pouce. Tout ce qui dépend de l'astre passe par sunLit et en profite.
   float sunLit = clamp(u_sunIntensity + u_dawn * 0.45, 0.0, 1.0);
 
-  // 1. Le dôme. L'exposant relève l'horizon au tiers bas, comme un paysage.
+  // 1. Le dôme. L'exposant décide à quelle hauteur le zénith cède à l'horizon,
+  //    et il suit la couverture : un ciel dégagé garde son bleu jusqu'au bas de
+  //    l'écran et ne blanchit que sur la dernière bande, comme dehors ; un ciel
+  //    couvert, lui, est pâle partout et le reste. Un exposant unique de 0,85
+  //    donnait à tout le monde le ciel du couvert — le grand beau temps virait
+  //    au blanc dès la moitié de la hauteur, et c'est ce qui lui ôtait son
+  //    éclat bien plus que sa teinte.
+  float courbe = mix(1.45, 0.85, u_cloudCover);
   float domeY = clamp(uv.y + par * 0.030, 0.0, 1.0);
-  float3 color = mix(u_zenith, u_horizon, pow(domeY, 0.85));
+  float3 color = mix(u_zenith, u_horizon, pow(domeY, courbe));
+
+  // 1b. Le plein soleil réchauffe tout le dôme, et pas seulement les abords de
+  //     l'astre. Un ciel dégagé de midi n'est jamais du bleu pur et froid : il
+  //     est baigné. Sans ce terme, la seule chose qui distinguait un grand beau
+  //     temps d'un ciel couvert clair était la teinte du dégradé, et l'écran ne
+  //     donnait jamais la sensation qu'il fait beau dehors.
+  float franc = sunLit * (1.0 - u_cloudCover);
+  color += float3(0.11, 0.075, 0.025) * franc;
 
   // 2. L'astre. Sa hauteur suit le soleil réel du lieu ; les nuages l'ont déjà
   //    voilé en amont, dans sunIntensity.
+  //
+  //    Trois termes qui se superposent, comme sur le dôme du web : un disque
+  //    net, une couronne serrée, un lobe large et faible. Un seul exponentiel
+  //    ne donnait qu'une tache floue dont on ne savait pas si c'était le soleil
+  //    ou un défaut du dégradé — et le grand beau temps se doit d'avoir un
+  //    astre qu'on puisse montrer du doigt.
   float2 sunPos = float2(0.68, 0.74 - u_sunHeight * 0.58 + par * 0.085);
   float sunDist = distance(float2(uv.x * aspect, uv.y), float2(sunPos.x * aspect, sunPos.y));
-  color += float3(1.0, 0.93, 0.78) * exp(-sunDist * 4.2) * sunLit * 0.9;
+
+  // Le disque respire à peine : de quoi empêcher le ciel de paraître figé sans
+  // qu'on sache dire ce qui bouge.
+  float breath = 0.92 + 0.08 * sin(u_time * 0.55);
+  float disc = 1.0 - smoothstep(0.021, 0.028, sunDist);
+  float corona = exp(-sunDist * 20.0) * 0.55 + exp(-sunDist * 4.2) * 0.5;
+
+  // La couleur de l'astre suit sa hauteur : blanc franc au zénith, orangé quand
+  // il rase l'horizon. C'est ce qui fait qu'un soleil de 8 h ne ressemble pas à
+  // un soleil de midi.
+  float3 warm = mix(float3(1.0, 0.72, 0.42), float3(1.0, 0.95, 0.82),
+                    clamp(u_sunHeight, 0.0, 1.0));
+
+  //    La couronne suit sunLit, qui sait déjà que les nuages voilent l'astre.
+  //    Le disque, lui, suit franc : sous une couche épaisse on ne voit pas le
+  //    soleil, on voit un ciel lumineux. Les faire dépendre du même nombre
+  //    collait un disque blanc et net au milieu d'un ciel couvert — le contraire
+  //    de ce qu'on voit en levant la tête un jour gris.
+  color += warm * corona * breath * sunLit;
+
+  //    Le disque s'ajoute au lieu de remplacer, et sature donc vers le blanc :
+  //    c'est ce qu'on voit d'un astre qu'on ne peut pas regarder en face. Une
+  //    version qui posait sa vraie couleur donnait une pastille orange en plein
+  //    milieu d'un ciel bleu — un autocollant, pas un soleil. L'ambre reste où
+  //    elle a lieu d'être : dans la couronne, et au ras de l'horizon, où la
+  //    palette du crépuscule prend le relais.
+  //
+  //    Le seuil doux le fait naître quand le ciel se dégage : sous une couche
+  //    épaisse le disque n'existe pas, et la couronne suffit à dire qu'il fait
+  //    jour.
+  float disqueVisible = smoothstep(0.04, 0.30, franc);
+  color += mix(warm, float3(1.0), 0.7) * disc * disqueVisible * 1.15;
 
   // 2b. Les rayons crépusculaires. L'angle module trois sinusoïdes de périodes
   //     entières : elles se referment exactement sur un tour, là où du bruit

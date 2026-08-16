@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildTimeline, VIEW } from '../js/timeline.js';
+import { buildTimeline, PLOT_WIDTH, VIEW } from '../js/timeline.js';
 
 /** Une journée dont le ressenti monte régulièrement, avec une averse à 19 h. */
 function day(overrides = {}) {
@@ -61,15 +61,31 @@ test('sans données horaires, pas de courbe', () => {
 
 /* ------------------------------------------------------- les coordonnées */
 
-test('les points s’étalent sur toute la largeur du repère', () => {
+test('les points s’étalent sur toute la largeur du tracé, l’échelle exclue', () => {
   const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
 
   assert.equal(t.points[0].x, 0);
-  assert.equal(t.points[t.points.length - 1].x, VIEW.width);
+  assert.equal(t.points[t.points.length - 1].x, PLOT_WIDTH);
 
   for (const p of t.points) {
-    assert.ok(p.x >= 0 && p.x <= VIEW.width, `x hors repère : ${p.x}`);
+    assert.ok(p.x >= 0 && p.x <= PLOT_WIDTH, `x hors du tracé : ${p.x}`);
     assert.ok(p.y >= 0 && p.y <= VIEW.height, `y hors repère : ${p.y}`);
+  }
+});
+
+test('le tracé laisse la gouttière de droite libre pour les degrés', () => {
+  // Sans elle, les nombres de l'échelle tombaient sur la courbe un jour sur
+  // deux — et une échelle illisible ne vaut pas la place qu'elle prend.
+  const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
+
+  assert.ok(PLOT_WIDTH < VIEW.width, 'la gouttière existe');
+  assert.equal(t.scale.x, PLOT_WIDTH);
+
+  for (const barre of t.bars) {
+    assert.ok(barre.x + barre.width <= PLOT_WIDTH, `barre dans la gouttière : ${barre.x}`);
+  }
+  for (const graduation of t.ticks) {
+    assert.ok(graduation.x <= PLOT_WIDTH, `graduation dans la gouttière : ${graduation.x}`);
   }
 });
 
@@ -154,8 +170,6 @@ test('une journée sans pluie ne produit aucune barre', () => {
 
 /* -------------------------------------------------------- les repères */
 
-const NBSP = '\u00A0';
-
 test('chaque heure a sa graduation', () => {
   // Une graduation toutes les quatre heures obligeait à interpoler à l'œil
   // pour situer 18 h — et les barres de la frise s'alignent sur les heures.
@@ -168,14 +182,15 @@ test('chaque heure a sa graduation', () => {
   }
 });
 
-test('l’unité ne s’écrit qu’une fois, sur la première graduation', () => {
-  // « 8 h, 9 h, 10 h… » seize fois de suite noierait l'axe sous les unités ;
-  // « 8 h, 9, 10 » se lit sans ambiguïté une fois la première posée.
+test('les heures sont des nombres nus, sans unité nulle part', () => {
+  // Le « h » ne portait qu'une étiquette sur seize : moins une unité qu'une
+  // irrégularité, sur laquelle l'œil butait en parcourant l'axe. Une rangée de
+  // nombres sous une courbe de température se lit comme des heures.
   const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
 
-  assert.equal(t.ticks[0].label, `8${NBSP}h`);
+  assert.equal(t.ticks[0].label, '8');
   assert.equal(t.ticks[1].label, '9');
-  assert.equal(t.ticks.filter((g) => g.label?.includes('h')).length, 1);
+  assert.equal(t.ticks.filter((g) => g.label?.includes('h')).length, 0);
 });
 
 test('les heures s’étiquettent toutes quand elles tiennent', () => {
@@ -198,14 +213,14 @@ test('quand les heures se pressent, une étiquette sur deux', () => {
   );
 });
 
-test('l’unité tombe sur la première graduation ÉTIQUETÉE', () => {
+test('une graduation non étiquetée reste muette', () => {
   // À 1 h du matin, la fenêtre est assez longue pour passer au pas de deux et
-  // commence sur une heure impaire : la première graduation n'est donc pas
-  // étiquetée, et l'unité doit suivre l'étiquette, pas la position.
+  // commence sur une heure impaire : la première graduation ne porte donc
+  // aucun nombre, et c'est celle de 2 h qui ouvre la lecture.
   const t = buildTimeline(day(), at('08', '01:00'));
   const etiquetees = t.ticks.filter((g) => g.label !== null);
 
-  assert.equal(etiquetees[0].label, `2${NBSP}h`);
+  assert.equal(etiquetees[0].label, '2');
   assert.equal(t.ticks[0].label, null, 'la graduation de 1 h reste muette');
 });
 
@@ -283,3 +298,70 @@ test('l’échelle verticale englobe l’enveloppe, pas seulement la médiane', 
   assert.ok(large.range.min < etroite.range.min, 'le bas de l’échelle doit descendre');
   assert.ok(large.range.max > etroite.range.max, 'et le haut monter');
 });
+
+/* --------------------------------------------- l’échelle des ordonnées */
+
+test('les lignes de niveau tombent sur des degrés ronds, dans la fenêtre', () => {
+  // Un repère qu'on aurait pu choisir soi-même se lit ; un 17,4° exact ne dit
+  // rien de plus et se lit moins bien.
+  const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
+  const pas = t.scale.degrees.map((d) => d.value);
+
+  assert.ok(pas.length > 0, 'une courbe sans échelle n’est qu’une silhouette');
+
+  for (const [i, valeur] of pas.entries()) {
+    assert.equal(valeur, Math.round(valeur), `${valeur} n’est pas un degré rond`);
+    assert.ok(valeur >= t.range.min && valeur <= t.range.max, `${valeur} hors de la fenêtre`);
+    if (i > 0) assert.equal(pas[i] - pas[i - 1], pas[1] - pas[0], 'le pas doit être régulier');
+  }
+});
+
+test('l’échelle ne dépasse jamais quatre lignes', () => {
+  // Au-delà, les traits se serrent sur une courbe de quatre-vingt-dix pixels
+  // et l’échelle devient une trame.
+  for (const ecart of [0, 1, 3, 6, 9, 14, 22, 40]) {
+    const t = buildTimeline(dayWithSpan(ecart), at('08', '12:00'));
+    assert.ok(t.scale.degrees.length <= 4, `${ecart}° d’amplitude → ${t.scale.degrees.length} lignes`);
+  }
+});
+
+test('les degrés se posent à la hauteur qu’ils désignent', () => {
+  const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
+
+  // Plus chaud veut dire plus haut : dans un repère SVG, un y plus petit.
+  const trie = [...t.scale.degrees].sort((a, b) => a.value - b.value);
+  for (let i = 1; i < trie.length; i += 1) {
+    assert.ok(trie[i].y < trie[i - 1].y, 'le degré supérieur doit être au-dessus');
+  }
+
+  // Et la ligne du bas s’accorde au pied de la courbe, à un demi-degré près.
+  const bas = trie[0];
+  const point = t.points.reduce((a, b) => (a.feelsLike < b.feelsLike ? a : b));
+  if (Math.abs(bas.value - point.feelsLike) < 0.5) {
+    assert.ok(Math.abs(bas.y - point.y) < 1.5, 'la ligne du bas doit longer le creux');
+  }
+});
+
+test('la bande de pluie ne porte aucune légende', () => {
+  // Elle en a porté une, un « pluie » posé dans la gouttière. À l'écran le mot
+  // pesait plus lourd que ce qu'il expliquait : des barres bleues qui montent
+  // sous une courbe de température se comprennent sans qu'on les nomme.
+  const t = buildTimeline(day({ date: '2026-08-09' }), at('08', '12:00'));
+
+  assert.ok(t.bars.length > 0, 'ce cas doit bien porter de la pluie');
+  assert.deepEqual(Object.keys(t.scale).sort(), ['degrees', 'x'], 'rien d’autre que l’échelle');
+});
+
+/** Une journée dont le ressenti balaie exactement `ecart` degrés. */
+function dayWithSpan(ecart) {
+  const base = day({ date: '2026-08-09' });
+  return {
+    ...base,
+    hours: base.hours.map((h, i) => ({
+      ...h,
+      feelsLike: 14 + (ecart * (i % 5)) / 4,
+      feelsLikeLow: null,
+      feelsLikeHigh: null,
+    })),
+  };
+}

@@ -142,6 +142,17 @@ function buildChart(timeline, label, events) {
   });
 
   graph.append(
+    // Les lignes de niveau d'abord : elles passent sous tout le reste, parce
+    // que ce sont des repères et non des données.
+    ...timeline.scale.degrees.map((niveau) =>
+      svg('line', {
+        x1: 0,
+        y1: niveau.y,
+        x2: timeline.scale.x,
+        y2: niveau.y,
+        class: 'chart__level',
+      }),
+    ),
     svg('path', { d: timeline.area, class: 'chart__area' }),
     // La bande passe sous la courbe : c'est un contexte, pas une donnée.
     ...(timeline.band ? [svg('path', { d: timeline.band, class: 'chart__band' })] : []),
@@ -155,7 +166,11 @@ function buildChart(timeline, label, events) {
   // Le texte vit en HTML plutôt qu'en SVG : le viewBox est étiré pour remplir
   // la largeur, ce qui déformerait les lettres s'il était dedans.
   const plot = element('div', 'chart__plot');
-  plot.append(graph, buildPeakLabel(timeline.peak));
+  plot.append(
+    graph,
+    buildPeakLabel(timeline.peak, timeline.scale.x),
+    ...buildScaleLabels(timeline.scale),
+  );
 
   // Un trait par heure, un nombre quand il y a la place. Le trait porte la
   // précision, le nombre la lecture : c'est lui qui permet de situer une barre
@@ -247,17 +262,38 @@ function buildEvents(timeline, events) {
  * La valeur du pic, seul chiffre porté par la courbe. Sans lui, le tracé
  * montre une forme sans jamais dire de combien elle monte.
  */
-function buildPeakLabel(peak) {
+function buildPeakLabel(peak, largeurTracé) {
   const label = element('span', 'chart__peak-label', peak.label);
 
   label.style.left = `${peak.x}%`;
   label.style.top = `${(peak.y / VIEW.height) * 100}%`;
 
-  // Collé à un bord, un libellé centré déborderait : on le rabat vers l'intérieur.
-  const alignement = peak.x < 12 ? '0' : peak.x > 88 ? '-100%' : '-50%';
+  // Collé à un bord, un libellé centré déborderait : on le rabat vers
+  // l'intérieur. À droite, la limite est la fin du tracé et non celle de la
+  // figure — au-delà commencent les degrés de l'échelle.
+  const alignement = peak.x < 12 ? '0' : peak.x > largeurTracé - 12 ? '-100%' : '-50%';
   label.style.transform = `translate(${alignement}, -140%)`;
 
   return label;
+}
+
+/**
+ * Les nombres de l'échelle, dans la gouttière de droite.
+ *
+ * En HTML et non en SVG, pour la même raison que le pic : le viewBox est étiré
+ * à la largeur disponible, et des lettres dedans s'étireraient avec lui.
+ *
+ * @param {object} scale l'échelle produite par buildTimeline
+ */
+function buildScaleLabels(scale) {
+  const poser = (y, texte, classe) => {
+    const label = element('span', classe, texte);
+    label.style.left = `${scale.x}%`;
+    label.style.top = `${(y / VIEW.height) * 100}%`;
+    return label;
+  };
+
+  return scale.degrees.map((niveau) => poser(niveau.y, niveau.label, 'chart__level-label'));
 }
 
 /**

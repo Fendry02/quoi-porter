@@ -9,7 +9,7 @@
  * Ce composant ne fait que la dessiner.
  */
 
-import { Canvas, Group, Path, Rect, Skia } from '@shopify/react-native-skia';
+import { Canvas, Group, Line, Path, Rect, Skia } from '@shopify/react-native-skia';
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -20,6 +20,9 @@ import type { DayWeather, TimelineGeometry } from '@/lib/types';
 const HEIGHT = 132;
 const CURVE_MS = 900;
 const BARS_MS = 520;
+
+/** Écart entre la fin du tracé et le nombre qui le légende, en points. */
+const SCALE_GAP = 6;
 
 /** En dessous, une averse ne mérite pas d'être annoncée à voix haute. */
 const SPOKEN_RAIN = 40;
@@ -43,6 +46,8 @@ function scaledPath(d: string, scaleX: number, scaleY: number) {
 function summarize(geo: TimelineGeometry): string {
   const { min, max } = geo.range;
   const base = `Déroulé de la journée. Ressenti de ${Math.round(min)} à ${Math.round(max)} degrés, maximum de ${geo.peak.label} vers ${geo.peak.hour} heures.`;
+  // L'échelle n'est pas énoncée : elle sert à lire le dessin, et la phrase dit
+  // déjà les deux bornes en toutes lettres.
 
   const wet = geo.bars.filter((bar) => bar.probability >= SPOKEN_RAIN);
   if (wet.length === 0) return `${base} Pas de pluie notable.`;
@@ -108,7 +113,20 @@ export function DayTimeline({
   return (
     <View accessibilityLabel={summarize(geo)} accessible style={styles.wrapper}>
       <Canvas style={{ height: HEIGHT, width }}>
-        {/* La bande d'incertitude d'abord : elle porte tout le reste. */}
+        {/* Les lignes de niveau tout au fond : ce sont des repères, et rien de
+            ce qui les suit ne doit passer dessous. */}
+        {geo.scale.degrees.map((niveau) => (
+          <Line
+            color={ink}
+            key={niveau.value}
+            opacity={0.14}
+            p1={{ x: 0, y: niveau.y * scaleY }}
+            p2={{ x: geo.scale.x * scaleX, y: niveau.y * scaleY }}
+            strokeWidth={1}
+          />
+        ))}
+
+        {/* La bande d'incertitude ensuite : elle porte tout le reste. */}
         {paths.band ? <Path color={ink} opacity={0.1} path={paths.band} /> : null}
 
         <Group opacity={areaOpacity}>
@@ -140,6 +158,23 @@ export function DayTimeline({
         />
       </Canvas>
 
+      {/* Les degrés se posent par-dessus le canevas, dans la gouttière que le
+          tracé laisse libre à droite. Du texte et non du dessin, pour la même
+          raison que les heures : la taille système doit pouvoir les grandir. */}
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { width }]}>
+        {geo.scale.degrees.map((niveau) => (
+          <Text
+            key={niveau.value}
+            style={[
+              styles.level,
+              { color: ink, left: geo.scale.x * scaleX + SCALE_GAP, top: niveau.y * scaleY - 7 },
+            ]}>
+            {niveau.label}
+          </Text>
+        ))}
+
+      </View>
+
       {/* Les heures restent du texte : elles suivent la taille système et
           l'accessibilité, ce que du texte dessiné dans le canevas ne ferait pas. */}
       <View style={[styles.axis, { width }]}>
@@ -162,6 +197,14 @@ export function DayTimeline({
 
 const styles = StyleSheet.create({
   wrapper: { marginTop: 4 },
+  // Les degrés situent la courbe sans jamais la disputer : même famille que les
+  // heures, une taille en dessous, et une opacité qui les laisse au second plan.
+  level: {
+    fontSize: 10,
+    fontVariant: ['tabular-nums'],
+    opacity: 0.55,
+    position: 'absolute',
+  },
   axis: { height: 18, marginTop: 6 },
   tick: {
     fontSize: 11,

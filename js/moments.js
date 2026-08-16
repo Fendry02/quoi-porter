@@ -28,33 +28,44 @@ const MOMENTS = [
 const MIN_HOURS = 2;
 
 /**
- * Articles des pièces qu'on emporte ou qu'on retire.
+ * Genre des pièces, par leur nom de tête.
+ *
+ * On indexe sur le premier mot et non sur le nom complet : le barème qualifie
+ * ses pièces — « pull fin », « chemise légère », « pantalon doublé » — et une
+ * table de correspondance exacte manquait chacune de ces variantes. Elle le
+ * faisait en silence, en rendant le nom tel quel : « prévois de retirer chemise
+ * légère », qu'aucun test ne regardait et que VoiceOver lisait tel quel.
+ *
+ * Le genre, lui, tient au nom de tête et pas au qualificatif. Une règle vaut
+ * donc mieux qu'une liste, et n'a pas à être tenue à jour quand le barème
+ * s'enrichit.
+ */
+const FEMININ = new Set(['chemise', 'veste', 'sous-couche']);
+
+/** Les noms devant lesquels « le » et « la » s'élident. */
+const ELISION = /^[aeiouyéèêh]/i;
+
+/**
+ * Une pièce précédée de son article.
  *
  * « Prends manteau » se lirait mal, et se dirait plus mal encore à voix haute —
  * or ces phrases passent par VoiceOver.
+ *
+ * @param {string} piece le nom de la pièce, qualificatif compris
+ * @param {boolean} defini `true` pour « le pull », `false` pour « un pull »
  */
-const INDEFINI = {
-  veste: 'une veste',
-  manteau: 'un manteau',
-  'coupe-vent': 'un coupe-vent',
-  imperméable: 'un imperméable',
-};
+function avecArticle(piece, defini) {
+  const tete = piece.split(' ')[0];
+  const feminin = FEMININ.has(tete);
 
-const DEFINI = {
-  pull: 'le pull',
-  chemise: 'la chemise',
-  't-shirt': 'le t-shirt',
-  veste: 'la veste',
-  manteau: 'le manteau',
-  'coupe-vent': 'le coupe-vent',
-  imperméable: 'l’imperméable',
-  'sous-couche thermique': 'la sous-couche thermique',
-};
+  if (!defini) return `${feminin ? 'une' : 'un'} ${piece}`;
+  return ELISION.test(tete) ? `l’${piece}` : `${feminin ? 'la' : 'le'} ${piece}`;
+}
 
 /** Ce qui, dans une tenue, se prend ou se retire — le reste ne se transporte pas. */
 function carriable(outfit) {
   const piece = outfit.layers.outer ?? outfit.layers.top[outfit.layers.top.length - 1];
-  return DEFINI[piece] ?? piece;
+  return avecArticle(piece, true);
 }
 
 /**
@@ -90,8 +101,7 @@ export function laterAdvice(weather, outfit, at) {
     // lequel on peut encore agir en partant.
     if (!manque) {
       if (alors.layers.outer && alors.layers.outer !== outfit.layers.outer) {
-        const piece = INDEFINI[alors.layers.outer] ?? alors.layers.outer;
-        manque = `Prends ${piece} pour ${moment.name}.`;
+        manque = `Prends ${avecArticle(alors.layers.outer, false)} pour ${moment.name}.`;
       } else if (couches > dejaCouches) {
         manque = `Prends une couche pour ${moment.name}.`;
       }

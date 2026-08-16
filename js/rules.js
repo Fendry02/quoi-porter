@@ -37,56 +37,73 @@ export function dressingPoint(weather) {
 /**
  * Paliers du barème de base, du plus chaud au plus froid.
  * `min` est la borne inférieure incluse du palier.
+ *
+ * Deux principes, tirés de ce que le barème précédent faisait mal.
+ *
+ * **Un palier ne doit jamais couvrir tout un climat.** Le premier allait de
+ * 25 °C à l'infini : une journée à 36 et une journée à 26 recevaient le même
+ * « t-shirt, short », et la réponse ne bougeait plus de tout l'été. Les paliers
+ * se resserrent donc là où l'on s'habille vraiment, entre 5 et 30.
+ *
+ * **Le mot doit porter plus que le vêtement.** « Pull » ne dit pas s'il faut
+ * celui de mi-saison ou celui de février ; « pull fin » et « pull épais » le
+ * disent, sans coûter une ligne de plus. C'est là que se gagne la précision,
+ * une fois qu'on s'interdit d'allonger la liste.
+ *
+ * **Jamais plus de quatre pièces.** Au-delà, ce n'est plus une réponse qu'on
+ * saisit d'un regard, c'est un inventaire qu'on relit. Le grand froid perd donc
+ * son t-shirt : sous une sous-couche thermique, il allait de soi.
  */
 const TIERS = [
+  { min: 30, top: ['t-shirt léger'], bottom: 'short', outer: null },
   { min: 25, top: ['t-shirt'], bottom: 'short', outer: null },
-  { min: 20, top: ['t-shirt'], bottom: 'pantalon léger', outer: null },
+  { min: 21, top: ['t-shirt'], bottom: 'pantalon léger', outer: null },
+  { min: 18, top: ['t-shirt', 'chemise légère'], bottom: 'pantalon léger', outer: null },
   { min: 15, top: ['t-shirt', 'chemise'], bottom: 'pantalon', outer: null },
-  { min: 10, top: ['t-shirt', 'pull'], bottom: 'jean', outer: null },
+  { min: 12, top: ['t-shirt', 'pull fin'], bottom: 'jean', outer: null },
+  { min: 9, top: ['t-shirt', 'pull'], bottom: 'jean', outer: null },
   { min: 5, top: ['t-shirt', 'pull'], bottom: 'jean', outer: 'veste' },
-  { min: 0, top: ['t-shirt', 'pull'], bottom: 'jean', outer: 'manteau' },
+  { min: 1, top: ['t-shirt', 'pull épais'], bottom: 'jean', outer: 'manteau' },
   {
     min: -Infinity,
-    top: ['sous-couche thermique', 't-shirt', 'pull'],
-    bottom: 'jean',
+    top: ['sous-couche thermique', 'pull épais'],
+    bottom: 'pantalon doublé',
     outer: 'manteau',
   },
 ];
 
-/**
- * Barème des pieds, du plus chaud au plus froid.
- *
- * Séparé du barème des vêtements, et c'est le point : les pieds ne suivent pas
- * les mêmes frontières que le torse. On enfile un pull bien avant de changer de
- * chaussures, et une averse impose des semelles étanches sans rien changer au
- * pull. Tant que les deux partageaient un seul tableau, `baskets` couvrait tout
- * l'espace de 0 à 40 °C et la réponse ne bougeait jamais.
- *
- * Ce qui distingue un palier de l'autre est fonctionnel, pas vestimentaire :
- * la ventilation en haut du barème, la fermeture puis l'isolation en bas.
- */
-const FEET_TIERS = [
-  { min: 28, feet: 'sandales ou baskets légères' },
-  { min: 22, feet: 'baskets légères' },
-  { min: 8, feet: 'baskets' },
-  { min: 0, feet: 'chaussures fermées' },
-  { min: -Infinity, feet: 'bottines fourrées' },
-];
+/** Le plafond que le barème s'impose, et que les tests tiennent. */
+export const MAX_PIECES = 4;
 
 /**
- * Point d'habillage au-delà duquel les pieds gagnent à rester à l'air, pluie
- * comprise : par 30 °C un pied mouillé sèche, un pied enfermé dans du
- * caoutchouc étanche ne sèche pas.
+ * Le nom de tête d'une pièce, son qualificatif retiré.
+ *
+ * « pull fin », « pull », « pull épais » désignent le même objet de la
+ * garde-robe, à des poids différents. Ce qui les distingue est un réglage, pas
+ * un choix : on ne se demande pas s'il faut prendre un pull, on se demande
+ * lequel. D'où ce dénominateur commun, dont `outfitIsRobust()` a besoin pour
+ * juger si un désaccord entre modèles change vraiment ce qu'on sort du placard.
+ *
+ * @param {string} piece le nom complet d'une pièce
+ * @returns {string} son nom de tête
  */
-const OPEN_FEET_TEMP = FEET_TIERS[0].min;
-
-/**
- * @param {number} dressedFor le point d'habillage, en °C ressentis
- * @returns {string} la chaussure du palier
- */
-function feetFor(dressedFor) {
-  return FEET_TIERS.find((t) => dressedFor >= t.min).feet;
+export function garmentRoot(piece) {
+  return piece.split(' ')[0];
 }
+
+/*
+ * Pas de chaussures.
+ *
+ * Le moteur en tenait un barème complet — sandales, baskets, bottines fourrées,
+ * plus les semelles étanches sous l'averse et adhérentes sur le verglas. À
+ * l'usage, personne n'attendait la page pour savoir qu'on met des baskets par
+ * 18 °C : la ligne se lisait sans jamais rien changer, et allongeait d'autant
+ * la tenue que l'on voulait saisir d'un regard.
+ *
+ * Ce qui comptait vraiment survit ailleurs : l'alerte `rain` dit qu'il va
+ * pleuvoir, l'alerte `ice` dit de prendre des semelles qui accrochent. Le
+ * conseil est resté, c'est l'inventaire qui est parti.
+ */
 
 /** Alertes liées à la seule température, émises par le barème de base. */
 function temperatureAlerts(weather) {
@@ -115,6 +132,35 @@ function temperatureAlerts(weather) {
   return alerts;
 }
 
+/** En dessous de ce ressenti minimum, on prend de quoi couvrir le cou. */
+const SCARF_TEMP = 5;
+
+/** Au-dessus de ce ressenti maximum, on emporte de quoi tenir le soleil. */
+const SUN_KIT_TEMP = 30;
+
+/**
+ * Ce qu'on emporte sans le porter.
+ *
+ * Cette ligne existait mais ne servait presque jamais : un parapluie, des
+ * lunettes, et rien d'autre onze mois sur douze. Or c'est précisément ce qu'on
+ * oublie en partant, et donc ce qu'une app du matin doit dire.
+ *
+ * Les accessoires suivent les extrêmes de la journée et non le point
+ * d'habillage : une casquette et une gourde se glissent dans un sac, autant les
+ * prendre pour l'heure la plus chaude ; une écharpe, pour la plus fraîche.
+ */
+function baseAccessories(weather) {
+  const emporter = [];
+
+  if (weather.feelsLikeMax >= SUN_KIT_TEMP) emporter.push('casquette', 'gourde');
+  if (weather.feelsLikeMin < SCARF_TEMP) emporter.push('écharpe');
+  // Gants et bonnet ne sortent qu'au gel : sous cinq degrés on a les mains dans
+  // les poches, sous zéro on ne les a plus.
+  if (weather.feelsLikeMin < 0) emporter.push('gants', 'bonnet');
+
+  return emporter;
+}
+
 function baseOutfit(weather) {
   const dressedFor = dressingPoint(weather);
   const tier = TIERS.find((t) => dressedFor >= t.min);
@@ -125,11 +171,8 @@ function baseOutfit(weather) {
       top: [...tier.top],
       bottom: tier.bottom,
       outer: tier.outer,
-      feet: feetFor(dressedFor),
     },
-    // Les extrémités, elles, subissent bien le minimum de la journée : gants et
-    // bonnet se glissent dans une poche, autant les prendre s'il gèle au réveil.
-    accessories: weather.feelsLikeMin < 0 ? ['gants', 'bonnet'] : [],
+    accessories: baseAccessories(weather),
     alerts: temperatureAlerts(weather),
   };
 }
@@ -194,23 +237,10 @@ const MODIFIERS = [
           ? 'manteau'
           : 'imperméable';
 
-    // Les pieds aussi. « Étanche » plutôt qu'« imperméable » : le mot est déjà
-    // pris par la couche extérieure, et « imperméable et chaussures
-    // imperméables » dans la même phrase se lit deux fois pour rien.
-    //
-    // Rien pour la neige : elle rend le sol glissant, et c'est `ice`, plus bas,
-    // qui a le dernier mot sur les semelles.
-    const feet =
-      outfit.dressedFor >= OPEN_FEET_TEMP
-        ? outfit.layers.feet
-        : heavy
-          ? 'bottines étanches'
-          : 'chaussures étanches';
-
     return withAlert(
       {
         ...outfit,
-        layers: { ...outfit.layers, outer, feet },
+        layers: { ...outfit.layers, outer },
         // Un parapluie sous la neige ne sert à rien.
         accessories: snowing ? outfit.accessories : [...outfit.accessories, 'parapluie'],
       },
@@ -309,15 +339,14 @@ const MODIFIERS = [
   function ice(weather, outfit) {
     if (!SLIPPERY_CODES.has(weather.weatherCode)) return outfit;
 
-    return withAlert(
-      { ...outfit, layers: { ...outfit.layers, feet: 'chaussures adhérentes' } },
-      {
-        kind: 'ice',
-        label: 'Verglas',
-        severity: 'high',
-        hint: 'Sol potentiellement glissant, prends des semelles qui accrochent.',
-      },
-    );
+    // Rien à changer dans la tenue : l'alerte porte tout le conseil, et c'est
+    // elle qu'on lit avant de sortir.
+    return withAlert(outfit, {
+      kind: 'ice',
+      label: 'Verglas',
+      severity: 'high',
+      hint: 'Sol potentiellement glissant, prends des semelles qui accrochent.',
+    });
   },
 ];
 
@@ -370,6 +399,13 @@ export function buildOutfit(weather, profile = null) {
  * du barème. Loin d'un palier, il ne change rien ; sur une frontière, il change
  * tout — et un seuil en degrés, lui, ne saurait pas faire la différence.
  *
+ * La comparaison porte sur les noms de tête, pas sur les noms complets. Depuis
+ * que le barème qualifie ses pièces, ses frontières sont bien plus rapprochées,
+ * et une comparaison littérale déclenchait la réserve presque tous les jours :
+ * un degré d'écart suffisait à faire passer de « pull » à « pull fin ». Or ce
+ * n'est pas une autre tenue, c'est le même pull. On ne prévient que lorsque le
+ * désaccord change ce qu'on sort du placard.
+ *
  * @param {object} weather un DayWeather normalisé
  * @returns {boolean} vrai si la tenue ne dépend pas de quel modèle a raison
  */
@@ -384,8 +420,14 @@ export function outfitIsRobust(weather) {
       feelsLikeMax: weather.feelsLikeMax + delta,
     });
 
-  const bas = decale(-ecart / 2).layers;
-  const haut = decale(ecart / 2).layers;
+  const racines = ({ top, bottom, outer }) => [
+    ...top.map(garmentRoot),
+    garmentRoot(bottom),
+    outer && garmentRoot(outer),
+  ];
+
+  const bas = racines(decale(-ecart / 2).layers);
+  const haut = racines(decale(ecart / 2).layers);
 
   return JSON.stringify(bas) === JSON.stringify(haut);
 }

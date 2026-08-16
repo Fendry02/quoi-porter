@@ -147,8 +147,8 @@ const FRAGMENT = /* glsl */ `
  */
 export function createSkyDome(settings) {
   const uniforms = {
-    uZenith: { value: new THREE.Color('#4a90c4') },
-    uHorizon: { value: new THREE.Color('#cfe4ef') },
+    uZenith: { value: new THREE.Color('#3d8ecf') },
+    uHorizon: { value: new THREE.Color('#e0e9ec') },
     uSunHeight: { value: 0.5 },
     uSunIntensity: { value: 0.5 },
     uStarDensity: { value: 0 },

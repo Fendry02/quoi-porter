@@ -114,3 +114,33 @@ test('sans heures, pas d’avis', () => {
 
   assert.equal(adviceFor(jour), null);
 });
+
+test('les pièces qualifiées portent leur article, comme les autres', () => {
+  // Une table de correspondance exacte manquait « chemise légère » et rendait
+  // le nom nu — « prévois de retirer chemise légère » — sans que rien ne le
+  // signale, y compris à VoiceOver. Le genre tient au nom de tête ; le
+  // qualificatif ne le change pas. On balaie donc les journées qui montent, et
+  // on exige un article partout où une pièce est nommée.
+  const montees = [
+    [10, 22],
+    [12, 24],
+    [14, 26],
+    [16, 26],
+    [18, 30],
+    [4, 16],
+    [0, 12],
+  ];
+
+  let vus = 0;
+
+  for (const [matin, apresMidi] of montees) {
+    const jour = dayWithHours((hour) => (hour < 12 ? matin : apresMidi));
+    const conseil = laterAdvice(jour, buildOutfit(jour), AUBE);
+    if (!conseil || !/retirer/.test(conseil)) continue;
+
+    vus += 1;
+    assert.match(conseil, /retirer (le|la|l’)/, `article manquant dans : ${conseil}`);
+  }
+
+  assert.ok(vus >= 3, `seulement ${vus} conseils de retrait produits, l’échantillon est trop maigre`);
+});

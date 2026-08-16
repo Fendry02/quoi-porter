@@ -27,10 +27,21 @@ const FAMILIES = [
  *
  * Le crépuscule est décrit explicitement plutôt que calculé : c'est le moment
  * le plus beau de la journée, il mérite d'être réglé à la main.
+ *
+ * Exportée pour que `test/mobile-presentation.test.js` vérifie la promesse de
+ * contraste sur la vraie table plutôt que sur une copie : la copie qu'il en
+ * tenait a fini par mentir, et un test qui ment sur une garantie de lisibilité
+ * est pire que pas de test du tout.
  */
-const PALETTES = {
+export const PALETTES = {
   clear: {
-    day: { zenith: '#4a90c4', horizon: '#cfe4ef', ink: '#12293d' },
+    // Le seul ciel dont l'encre est calculée à la décimale près, et pour une
+    // raison précise : `veilFor()` cherche le voile minimal qui tienne 4,5 pour
+    // 1, et l'ancienne encre tombait à 4,31 sur ce zénith. Un film blanc de
+    // 10 % venait donc laver le grand beau temps — le seul des sept ciels à en
+    // recevoir un, alors que c'est celui qui doit éclater. Une encre plus
+    // sombre le rend inutile, et le bleu reste franc.
+    day: { zenith: '#3d8ecf', horizon: '#e0e9ec', ink: '#0b1a28' },
     dusk: { zenith: '#3b4a76', horizon: '#f0a878', ink: '#1b1630' },
     night: { zenith: '#0c1327', horizon: '#28345a', ink: '#dde5f2' },
   },

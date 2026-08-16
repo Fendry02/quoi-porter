@@ -46,7 +46,7 @@ test('la semaine mobile garde les sept premiers jours et prépare leur recommand
   assert.equal(week[1].isToday, false);
   assert.equal(week[0].id, '2026-08-10');
   assert.match(week[0].phrasing.wear, /t-shirt/i);
-  assert.equal(week[0].outfit.layers.bottom, 'pantalon');
+  assert.equal(week[0].outfit.layers.bottom, 'pantalon léger');
 });
 
 test('le widget résume le lieu, la tenue, la plage de température et le risque principal', () => {

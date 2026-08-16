@@ -9,10 +9,22 @@
  * quand tombe l'averse.
  */
 
-import { relevantHours, NBSP } from './hours.js';
+import { relevantHours } from './hours.js';
 
 /** Repère normalisé du tracé. Le SVG s'y adapte par son viewBox. */
 export const VIEW = { width: 100, height: 34 };
+
+/**
+ * Part de la largeur réservée, à droite, aux degrés de l'échelle.
+ *
+ * Le tracé s'arrête donc avant le bord. C'est le prix d'une échelle lisible :
+ * posés sur le dessin, les nombres tombaient sur la courbe un jour sur deux, et
+ * une échelle qu'on ne peut pas lire ne vaut pas la place qu'elle prend.
+ */
+const GUTTER = 13;
+
+/** Largeur du tracé lui-même, l'échelle exclue. */
+export const PLOT_WIDTH = VIEW.width - GUTTER;
 
 /** Hauteur réservée aux barres de pluie, en bas du repère. */
 const RAIN_BAND = 11;
@@ -31,7 +43,27 @@ const MIN_POINTS = 3;
  */
 const LABEL_CROWD = 18;
 
+/**
+ * Pas possibles de l'échelle des degrés, du plus fin au plus large.
+ *
+ * On prend le premier qui tienne l'amplitude du jour en quatre lignes au plus :
+ * au-delà, les traits se serrent sur une courbe qui fait quatre-vingt-dix
+ * pixels de haut, et l'échelle devient une trame. Les valeurs sont rondes par
+ * construction — 20°, 25° — parce qu'on lit mieux un repère qu'on aurait pu
+ * choisir soi-même qu'un 17,4° exact dont on n'a rien à faire.
+ */
+const NICE_STEPS = [1, 2, 5, 10];
+
+/** Nombre maximum de lignes de niveau. */
+const MAX_LEVELS = 4;
+
 const round = (n) => Math.round(n * 100) / 100;
+
+/** Le pas de l'échelle : le plus fin qui tienne en MAX_LEVELS lignes. */
+function niceStep(min, max) {
+  const lignes = (pas) => Math.floor(max / pas) - Math.ceil(min / pas) + 1;
+  return NICE_STEPS.find((pas) => lignes(pas) <= MAX_LEVELS) ?? NICE_STEPS[NICE_STEPS.length - 1];
+}
 
 /**
  * @param {object} weather un DayWeather normalisé
@@ -64,7 +96,7 @@ export function buildTimeline(weather, at) {
     round(basCourbe - ((valeur - min) / amplitude) * (basCourbe - hautCourbe));
 
   const points = heures.map((h, i) => ({
-    x: round((i / (heures.length - 1)) * VIEW.width),
+    x: round((i / (heures.length - 1)) * PLOT_WIDTH),
     y: y(h.feelsLike),
     hour: h.hour,
     feelsLike: h.feelsLike,
@@ -72,7 +104,7 @@ export function buildTimeline(weather, at) {
   }));
 
   const curve = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
-  const area = `${curve} L${VIEW.width},${basCourbe} L0,${basCourbe} Z`;
+  const area = `${curve} L${PLOT_WIDTH},${basCourbe} L0,${basCourbe} Z`;
 
   // La bande d'incertitude : le haut de l'enveloppe à l'aller, le bas au
   // retour. Absente en mono-modèle — une bande de largeur nulle laisserait
@@ -89,7 +121,7 @@ export function buildTimeline(weather, at) {
 
   // Une barre par heure où la pluie est plausible. En dessous, on ne salit pas
   // le tracé avec des traits de deux pixels.
-  const largeur = (VIEW.width / heures.length) * 0.55;
+  const largeur = (PLOT_WIDTH / heures.length) * 0.55;
   const bars = points
     .filter((p) => p.probability >= 10)
     .map((p) => {
@@ -112,15 +144,16 @@ export function buildTimeline(weather, at) {
   // vingt-quatre nombres ne tiennent pas côte à côte sur un téléphone. Les
   // graduations restent horaires, seuls les nombres s'espacent.
   const pas = points.length > LABEL_CROWD ? 2 : 1;
-  // L'unité une seule fois : « 8 h, 9 h, 10 h… » seize fois noierait l'axe,
-  // « 8 h, 9, 10 » se lit sans ambiguïté une fois la première posée. Elle suit
-  // l'étiquette et non la position — la première graduation peut être muette.
-  const premiere = points.find((p) => p.hour % pas === 0);
 
+  // Des nombres nus, sans unité. Le « h » ne portait qu'une seule étiquette sur
+  // seize, ce qui en faisait moins une unité qu'une irrégularité : on lisait
+  // « 8 h » puis « 9 », et l'œil butait sur la différence. Une rangée de
+  // nombres sous une courbe de température se lit comme des heures sans qu'on
+  // ait besoin de le dire.
   const ticks = points.map((p) => ({
     x: p.x,
     hour: p.hour,
-    label: p.hour % pas !== 0 ? null : p === premiere ? `${p.hour}${NBSP}h` : `${p.hour}`,
+    label: p.hour % pas !== 0 ? null : `${p.hour}`,
   }));
 
   const sommet = points.reduce((a, b) => (a.feelsLike > b.feelsLike ? a : b));
@@ -132,7 +165,44 @@ export function buildTimeline(weather, at) {
     band,
     bars,
     ticks,
+    scale: buildScale(min, max, y),
     peak: { x: sommet.x, y: sommet.y, hour: sommet.hour, label: `${Math.round(sommet.feelsLike)}°` },
     range: { min, max },
+  };
+}
+
+/**
+ * L'échelle des ordonnées : des lignes de niveau à degrés ronds.
+ *
+ * Sans elle, la courbe n'était qu'une silhouette : on voyait qu'il faisait plus
+ * chaud à 16 h qu'à 8 h, jamais de combien. Le seul chiffre porté était le pic,
+ * et il ne suffit pas à situer le reste du tracé.
+ *
+ * Les lignes s'arrêtent au tracé, les nombres tiennent dans la gouttière de
+ * droite. Elles passent sous la courbe au rendu : c'est un fond de repère, pas
+ * une donnée.
+ *
+ * La bande de pluie du bas n'est pas légendée. Elle l'a été un temps, par un
+ * « pluie » posé dans la gouttière ; à l'écran, le mot pesait plus lourd que
+ * ce qu'il expliquait. Des barres bleues qui montent sous une courbe de
+ * température se comprennent sans qu'on les nomme.
+ *
+ * @param {number} min le ressenti le plus bas de la fenêtre
+ * @param {number} max le plus haut
+ * @param {(valeur: number) => number} y la projection verticale du tracé
+ */
+function buildScale(min, max, y) {
+  const pas = niceStep(min, max);
+
+  const degrees = [];
+  for (let valeur = Math.ceil(min / pas) * pas; valeur <= max; valeur += pas) {
+    degrees.push({ value: valeur, y: y(valeur), label: `${valeur}°` });
+  }
+
+  return {
+    // Où le tracé s'arrête et où les nombres commencent : les deux rendus s'en
+    // servent plutôt que de refaire le calcul chacun de son côté.
+    x: PLOT_WIDTH,
+    degrees,
   };
 }

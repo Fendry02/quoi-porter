@@ -14,7 +14,7 @@
  * La tenue passe devant parce que c'est ce qu'on est venu chercher. Une version
  * précédente la noyait au milieu d'une phrase météo et en taisait la moitié
  * — « ce qui va de soi » — si bien qu'on ne voyait jamais une tenue, seulement
- * des fragments. On dit désormais tout, même le jean, même les baskets.
+ * des fragments. On dit désormais tout, même le jean.
  *
  * Les variantes de la phrase météo sont choisies de façon déterministe à partir
  * de la date : la page ne change pas de formulation d'un rechargement à
@@ -53,6 +53,8 @@ const ARTICLES = {
   bonnet: 'un bonnet',
   lunettes: 'des lunettes',
   écharpe: 'une écharpe',
+  casquette: 'une casquette',
+  gourde: 'une gourde',
 };
 
 /**
@@ -80,12 +82,12 @@ function capitalize(phrase) {
 }
 
 /**
- * La tenue entière, de la tête aux pieds : les couches du haut, le bas, la
- * couche extérieure, les chaussures.
+ * La tenue entière : les couches du haut, le bas, la couche extérieure. Pas de
+ * chaussures — le moteur n'en décide plus, voir `js/rules.js`.
  */
 function wearSentence(outfit) {
-  const { top, bottom, outer, feet } = outfit.layers;
-  const pieces = [...top, bottom, outer, feet].filter(Boolean);
+  const { top, bottom, outer } = outfit.layers;
+  const pieces = [...top, bottom, outer].filter(Boolean);
 
   return `${capitalize(enumerate(pieces))}.`;
 }
