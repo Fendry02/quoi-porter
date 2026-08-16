@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "QuoiPorter",
-    "slug": "weather-clothes",
+    "slug": "quoi-porter",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/weather-clothes-icon.png",
-    "scheme": "weather-clothes",
+    "icon": "./assets/images/quoi-porter-icon.png",
+    "scheme": "quoi-porter",
     "userInterfaceStyle": "automatic",
     "ios": {
       "appleTeamId": "K2LUP8LQQY",
@@ -25,7 +25,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/weather-clothes-icon.png"
+      "favicon": "./assets/images/quoi-porter-icon.png"
     },
     "plugins": [
       "expo-router",
@@ -68,7 +68,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#DCEEFF",
-          "image": "./assets/images/weather-clothes-icon.png",
+          "image": "./assets/images/quoi-porter-icon.png",
           "imageWidth": 76
         }
       ]

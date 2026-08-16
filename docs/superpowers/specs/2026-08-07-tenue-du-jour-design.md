@@ -57,7 +57,7 @@ matinée déjà passée.
 ## Architecture
 
 ```
-weather-clothes/
+quoi-porter/
 ├── index.html
 ├── styles.css
 ├── js/

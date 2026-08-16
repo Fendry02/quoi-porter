@@ -17,7 +17,9 @@ import {
   placeEventLabels,
 } from './render.js';
 
-const STORAGE_KEY = 'weather-clothes.place';
+const STORAGE_KEY = 'quoi-porter.place';
+/** Le nom d'avant le renommage du projet, relu une fois puis abandonné. */
+const LEGACY_STORAGE_KEY = 'weather-clothes.place';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -53,9 +55,23 @@ let lastRenderedAt = 0;
 
 /* ------------------------------------------------------------------ lieu */
 
+/**
+ * Récupère la ville rangée sous l'ancien nom de clé et la range sous le
+ * nouveau, pour qu'un visiteur déjà venu n'ait pas à la ressaisir. La reprise
+ * n'a lieu qu'une fois : l'ancienne clé est effacée dans la foulée.
+ */
+function adoptLegacyPlace() {
+  const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) return null;
+
+  localStorage.setItem(STORAGE_KEY, raw);
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
+  return raw;
+}
+
 function readStoredPlace() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? adoptLegacyPlace();
     if (!raw) return null;
 
     const place = JSON.parse(raw);

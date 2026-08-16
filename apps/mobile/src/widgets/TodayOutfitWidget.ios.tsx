@@ -24,7 +24,7 @@ const TodayOutfitWidget = (props: WidgetData, environment: WidgetEnvironment) =>
       modifiers={[
         padding({ all: 16 }),
         containerBackground(background, 'widget'),
-        widgetURL('weather-clothes://today'),
+        widgetURL('quoi-porter://today'),
       ]}>
       <HStack alignment="firstTextBaseline">
         <Text modifiers={[font({ textStyle: 'caption', weight: 'semibold' }), foregroundStyle(muted)]}>
