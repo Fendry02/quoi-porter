@@ -1,0 +1,71 @@
+QuoiPorter — App Review Information
+
+1. WHAT THE APP DOES
+QuoiPorter answers one question: "what should I wear today?". It turns a
+location-specific weather forecast into a complete written outfit — layers,
+bottom, outer layer, and what to carry — in plain French, rather than showing a
+weather dashboard. It uses the felt temperature, flags practical risks (rain,
+wind, UV) and mentions forecast uncertainty only when the models disagree enough
+to change the advice. A horizontal 7-day rail covers the coming week. A Home
+Screen widget ("Tenue du jour") gives the same answer without opening the app.
+Audience: general public, 4+, French-speaking, deciding what to wear before
+leaving home. The value is a decision, not data.
+
+2. ACCESS — NO ACCOUNT, NOTHING GATED
+No account, registration, login, account deletion, purchase, subscription or
+user-generated content. No credentials or sample files are needed. Steps:
+a. Launch the app. A first-run question asks which wardrobe to draw from
+   (Femme / Homme / "Je préfère ne pas dire"). All three answers continue; the
+   answer is stored on the device only and can be changed later.
+b. iOS asks for location ("Ta position permet de proposer une tenue adaptée à la
+   météo locale."). Allow it to get the forecast for where you are.
+   Location is OPTIONAL. On "Don't Allow", tap "Choisir une ville" (choose a
+   city), type a city name (e.g. Paris), tap "Chercher", pick a result. Every
+   feature stays available.
+c. Today's outfit appears, then the weather sentence, then the 7-day rail. Tap
+   any day in the rail to see that day's outfit.
+d. Scroll down for the hourly temperature and rain curve, the alerts, and the
+   uncertainty line.
+e. Tap the city name at the top to change city. Tap "…" (top right) to change
+   the wardrobe.
+f. Widget: long-press the Home Screen, tap "+", search QuoiPorter, add "Tenue du
+   jour" (small or medium).
+An internet connection is required on first load.
+
+3. DEVICES AND OS TESTED
+iPhone 17 (iPhone18,3) on iOS 26.6 — physical device, release build, full manual
+pass including the widget. Simulators on iOS 26.5: iPhone 17 Pro Max, 17 Pro,
+17, 17e, Air. Minimum supported version: iOS 16.4. iPhone only.
+
+4. EXTERNAL SERVICES
+- Open-Meteo Forecast API (api.open-meteo.com/v1/forecast) — the forecast.
+  Public, free, no API key, no account.
+- Open-Meteo Geocoding API (geocoding-api.open-meteo.com/v1/search) — city
+  search.
+- Apple CoreLocation reverse geocoding — turns coordinates into a place name.
+No back-end server of ours, no authentication service, no payment processor, no
+AI service, no advertising, analytics or tracking SDK. Coordinates and the typed
+city name are sent to Open-Meteo only to fetch a forecast. The chosen place and
+the wardrobe answer stay on the device (SQLite, shared with the widget through
+the app group).
+
+5. REGIONAL DIFFERENCES
+None. The app offers the same features and behaves identically in every region.
+Open-Meteo covers the whole world, so any city in any country can be selected.
+The interface is French only (a single fr-FR localization) and units are metric
+everywhere.
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+Not a regulated industry. The app gives general-audience clothing advice derived
+from public weather data: it makes no medical, safety-critical or official
+warning claims, and it does not relay government weather alerts. Open-Meteo
+publishes its data under Creative Commons Attribution 4.0 and offers free API
+access without a key or contract; the underlying models are open data from
+national weather services. Open-Meteo is credited in the App Store description.
+No licensed or third-party copyrighted material is used — the artwork, text and
+code are our own.
+
+7. SENSITIVE-DATA PROMPTS
+The location permission at first launch is the only one. The app does not use
+App Tracking Transparency, camera, contacts, photos, microphone, notifications
+or HealthKit.

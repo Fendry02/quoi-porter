@@ -1,6 +1,6 @@
 # Fiche App Store — QuoiPorter (fr-FR)
 
-App Store Connect : app `6801611537` · bundle `com.weatherclothes.app` · version `1.0.0` build `1`
+App Store Connect : app `6801611537` · bundle `com.weatherclothes.app` · version `1.0` build `1`
 Langue principale : français (France). iPhone uniquement (`TARGETED_DEVICE_FAMILY = 1`).
 
 ---

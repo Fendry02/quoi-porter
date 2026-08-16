@@ -236,13 +236,37 @@ or HealthKit.
 
 ## 3. Où ça se colle
 
-**La réponse et la vidéo** — App Store Connect → Mes apps → QuoiPorter → la version 1.0.0
-→ Centre de résolution (le fil de messages ouvert par le refus). Le trombone porte la
-vidéo, le mot d'accompagnement et le bloc vont dans le message.
+**La réponse et la vidéo** — App Store Connect → Apps → QuoiPorter → Centre de résolution,
+dans la barre latérale (le fil de messages ouvert par le refus). Le trombone porte la
+vidéo, le mot d'accompagnement et le bloc vont dans le message. C'est la seule étape qui
+demande vraiment la main : rien dans l'API ne poste dans le Centre de résolution.
 
-**Les notes** — même version → section « Informations pour l'examen de l'app » → champ
-« Notes ». C'est le champ qu'Apple demande de garnir pour les envois suivants ; il survit
-aux versions, donc il se remplit une fois.
+**Les notes — déjà posées, par l'API.** Le champ vit tout en bas de la page de version,
+sous « Informations pour l'examen de l'app », et il se cherche mal. L'API le porte aussi :
+c'est l'attribut `notes` de la ressource `appStoreReviewDetail`.
+
+```bash
+cd apps/mobile
+ASC_ISSUER_ID=$(cat ~/.appstoreconnect/issuer-id) node scripts/review-notes.mjs
+ASC_ISSUER_ID=$(cat ~/.appstoreconnect/issuer-id) \
+  node scripts/review-notes.mjs --write ../../docs/store/notes-examen.txt
+```
+
+Sans `--write`, le script montre seulement ce qui est en place — notes, contact, compte de
+démonstration — sans rien toucher. Le bloc a été posé par cette voie le 16 août 2026 :
+3914 caractères sur la version `1.0`, en remplacement des 487 d'origine. Le contact était
+déjà rempli, téléphone et e-mail compris.
+
+> **La version s'appelle `1.0` dans l'API, pas `1.0.0`.** L'écart n'a pas de conséquence,
+> mais il fait chercher au mauvais endroit quand on filtre par nom.
+
+`notes-examen.txt` est le même texte que le bloc de la section 2, en fichier nu pour le
+script. Après toute retouche du bloc, le regénérer plutôt que de recopier :
+
+```bash
+awk '/^QuoiPorter — App Review Information$/,/^or HealthKit\.$/' \
+  docs/store/reponse-examen-2-1.md > docs/store/notes-examen.txt
+```
 
 Rien d'autre à toucher : ni le build, ni les captures, ni la fiche. La version reste en
 « Refusée » jusqu'à ce qu'App Review reprenne le fil — compter un à deux jours.
