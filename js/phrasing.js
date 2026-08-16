@@ -54,7 +54,6 @@ const ARTICLES = {
   lunettes: 'des lunettes',
   écharpe: 'une écharpe',
   casquette: 'une casquette',
-  gourde: 'une gourde',
 };
 
 /**

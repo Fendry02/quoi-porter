@@ -621,14 +621,28 @@ test('le profil ne change pas le jugement de robustesse', () => {
 
 /* ------------------------------------------------- ce qu'on emporte */
 
-test('la forte chaleur fait emporter de quoi la tenir', () => {
+test('la forte chaleur fait emporter de quoi couvrir sa tête', () => {
   // La ligne « Avec… » ne servait qu'au parapluie et aux lunettes : onze mois
   // sur douze elle restait muette, alors que c'est exactement ce qu'on oublie
   // en partant.
   const outfit = buildOutfit(calmDay({ feelsLikeMin: 26, feelsLikeMax: 34 }));
 
   assert.ok(outfit.accessories.includes('casquette'));
-  assert.ok(outfit.accessories.includes('gourde'));
+});
+
+test('l’app ne conseille que des choses qui se portent', () => {
+  // La gourde a figuré ici, et c'était une chose de trop : boire n'est pas un
+  // vêtement, et l'alerte chaleur le dit déjà au bon moment. Ce test tient la
+  // frontière — tout ce que la ligne « Avec… » nomme doit s'enfiler ou se
+  // porter sur soi.
+  const canicule = buildOutfit(calmDay({ feelsLikeMin: 28, feelsLikeMax: 38, uvIndex: 9 }));
+
+  assert.equal(canicule.accessories.includes('gourde'), false);
+  assert.match(
+    canicule.alerts.find((a) => a.kind === 'heat').hint,
+    /bois/,
+    'le conseil de boire doit survivre dans l’alerte',
+  );
 });
 
 test('l’écharpe sort avant les gants, et les gants avant rien', () => {

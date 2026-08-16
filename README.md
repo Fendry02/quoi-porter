@@ -65,7 +65,8 @@ pour savoir qu'on met des baskets par 18 °C. La ligne se lisait sans jamais rie
 de 25 °C à l'infini donne la même réponse tout l'été : les paliers se resserrent donc là où
 l'on s'habille vraiment, et les pièces portent leur poids — « pull fin » et « pull épais »
 disent lequel sortir sans coûter une ligne de plus. Le reste part dans ce qu'on emporte,
-une casquette et une gourde par forte chaleur, une écharpe dès le frisquet.
+une casquette par forte chaleur, une écharpe dès le frisquet. Rien qui ne se porte : boire
+n'est pas un vêtement, et l'alerte chaleur le dit déjà.
 
 Une version précédente noyait les vêtements au milieu d'une phrase météo et en taisait la
 moitié — « ce qui va de soi » — si bien qu'on ne voyait jamais une tenue, seulement des

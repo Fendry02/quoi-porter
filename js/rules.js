@@ -135,7 +135,7 @@ function temperatureAlerts(weather) {
 /** En dessous de ce ressenti minimum, on prend de quoi couvrir le cou. */
 const SCARF_TEMP = 5;
 
-/** Au-dessus de ce ressenti maximum, on emporte de quoi tenir le soleil. */
+/** Au-dessus de ce ressenti maximum, on couvre sa tête. */
 const SUN_KIT_TEMP = 30;
 
 /**
@@ -146,13 +146,18 @@ const SUN_KIT_TEMP = 30;
  * oublie en partant, et donc ce qu'une app du matin doit dire.
  *
  * Les accessoires suivent les extrêmes de la journée et non le point
- * d'habillage : une casquette et une gourde se glissent dans un sac, autant les
- * prendre pour l'heure la plus chaude ; une écharpe, pour la plus fraîche.
+ * d'habillage : une casquette se glisse dans un sac, autant la prendre pour
+ * l'heure la plus chaude ; une écharpe, pour la plus fraîche.
+ *
+ * Pas de gourde. Elle a figuré ici un temps, et c'était une chose de trop :
+ * l'app dit ce qu'on porte, et boire n'est pas un vêtement. L'alerte chaleur
+ * le dit déjà en toutes lettres, au bon moment — « bois régulièrement et
+ * cherche l'ombre ».
  */
 function baseAccessories(weather) {
   const emporter = [];
 
-  if (weather.feelsLikeMax >= SUN_KIT_TEMP) emporter.push('casquette', 'gourde');
+  if (weather.feelsLikeMax >= SUN_KIT_TEMP) emporter.push('casquette');
   if (weather.feelsLikeMin < SCARF_TEMP) emporter.push('écharpe');
   // Gants et bonnet ne sortent qu'au gel : sous cinq degrés on a les mains dans
   // les poches, sous zéro on ne les a plus.
