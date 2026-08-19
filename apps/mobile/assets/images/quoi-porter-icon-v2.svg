@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!--
+    QuoiPorter app icon
+
+    A hanger makes the outfit unmistakable; the warm disc behind it turns the
+    mark into a weather-aware wardrobe. The deliberately small palette and
+    generous curves make it read as a brand mark, even at home-screen size.
+  -->
+  <defs>
+    <linearGradient id="sky" x1="178" y1="94" x2="833" y2="936" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#254B62"/>
+      <stop offset="1" stop-color="#102B3D"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="0" cy="0" r="1" gradientTransform="translate(617 367) rotate(90) scale(241)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FBE1A2"/>
+      <stop offset="1" stop-color="#E6B85E"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#sky)"/>
+  <circle cx="617" cy="418" r="218" fill="url(#sun)"/>
+  <circle cx="563" cy="348" r="107" fill="#FFF0C8" opacity=".22"/>
+  <g fill="none" stroke="#071E2C" stroke-linecap="round" stroke-linejoin="round" stroke-width="62" opacity=".28" transform="translate(0 17)">
+    <path d="M512 425V344c0-43 31-75 72-75 31 0 56 23 56 52 0 28-22 51-50 51h-23"/>
+    <path d="M512 425 238 581c-34 20-52 50-52 78 0 42 34 76 76 76h500c42 0 76-34 76-76 0-28-18-58-52-78L512 425Z"/>
+  </g>
+  <g fill="none" stroke="#F8F6EF" stroke-linecap="round" stroke-linejoin="round" stroke-width="62">
+    <path d="M512 425V344c0-43 31-75 72-75 31 0 56 23 56 52 0 28-22 51-50 51h-23"/>
+    <path d="M512 425 238 581c-34 20-52 50-52 78 0 42 34 76 76 76h500c42 0 76-34 76-76 0-28-18-58-52-78L512 425Z"/>
+  </g>
+</svg>
