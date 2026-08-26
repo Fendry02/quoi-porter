@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 2,
+  "appName": "QuoiPorter",
+  "themeId": "ocean-fresh",
+  "connectedCanvas": true,
+  "locales": ["fr"],
+  "locale": "fr",
+  "device": "iphone",
+  "orientation": "portrait",
+  "appIcon": "/app-icon.png",
+  "slidesByDevice": {
+    "iphone": [
+      {
+        "id": "tenue-du-jour",
+        "layout": "hero",
+        "label": { "fr": "TENUE DU JOUR" },
+        "headline": { "fr": "Sachez quoi\nmettre." },
+        "screenshot": "/screenshots/apple/iphone/fr/01.png"
+      },
+      {
+        "id": "jour-de-pluie",
+        "layout": "device-bottom",
+        "label": { "fr": "PLUIE" },
+        "headline": { "fr": "La pluie change\nvotre tenue." },
+        "screenshot": "/screenshots/apple/iphone/fr/02.png",
+        "inverted": true
+      },
+      {
+        "id": "semaine",
+        "layout": "device-top",
+        "label": { "fr": "SEMAINE" },
+        "headline": { "fr": "Voyez la semaine\narriver." },
+        "screenshot": "/screenshots/apple/iphone/fr/03.png"
+      },
+      {
+        "id": "widget",
+        "layout": "two-devices",
+        "label": { "fr": "WIDGET" },
+        "headline": { "fr": "La réponse reste\nà portée de main." },
+        "screenshot": "/screenshots/apple/iphone/fr/04.png",
+        "screenshotSecondary": "/screenshots/apple/iphone/fr/01.png"
+      }
+    ]
+  }
+}

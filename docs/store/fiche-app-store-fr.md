@@ -1,22 +1,26 @@
 # Fiche App Store — QuoiPorter (fr-FR)
 
-App Store Connect : app `6801611537` · bundle `com.weatherclothes.app` · version `1.0` build `1`
+App Store Connect : app `6801611537` · bundle `com.weatherclothes.app` · version publique `1.1.0` (25 août 2026)
 Langue principale : français (France). iPhone uniquement (`TARGETED_DEVICE_FAMILY = 1`).
+
+> La fiche publique actuelle porte encore le nom « QuoiPorter ». Les champs ci-dessous
+> sont la version ASO à envoyer avec la prochaine soumission. Le texte promotionnel peut,
+> lui, être remplacé tout de suite dans App Store Connect.
 
 ---
 
 ## Informations sur l'app
 
-**Nom** (30 max — 10 utilisés)
+**Nom** (30 max — 24 utilisés)
 
 ```
-QuoiPorter
+QuoiPorter : tenue météo
 ```
 
-**Sous-titre** (30 max — 28 utilisés)
+**Sous-titre** (30 max — 25 utilisés)
 
 ```
-La bonne tenue, chaque matin
+S’habiller selon le temps
 ```
 
 **Catégorie principale** : Météo
@@ -30,51 +34,57 @@ La bonne tenue, chaque matin
 
 ---
 
-## Version 1.0.0
+## Prochaine soumission
 
-**Texte promotionnel** (170 max — 142 utilisés · modifiable sans nouvelle soumission)
-
-```
-Chaque matin, la tenue complète pour la météo du jour : les habits, la couche du dessus et ce qu'il faut emporter. Sans compte, sans réglages.
-```
-
-**Description** (4000 max — ~1180 utilisés)
+**Texte promotionnel** (170 max — 124 utilisés · modifiable sans nouvelle soumission)
 
 ```
-QuoiPorter répond à la seule question qui compte avant de sortir : qu'est-ce que je mets ?
-
-Pas un tableau de bord météo. Une tenue complète, écrite en français clair, pour le temps qu'il va vraiment faire là où tu es.
-
-CE QUE TU VOIS EN OUVRANT L'APP
-
-La tenue du jour, d'abord. Les habits, la couche du dessus, et ce qu'il vaut mieux emporter. Le détail météo vient après, pour ceux qui veulent comprendre.
-
-La température ressentie plutôt que le chiffre brut : 8 degrés avec du vent ne s'habillent pas comme 8 degrés au soleil.
-
-L'incertitude, seulement quand elle change quelque chose. Si les modèles ne sont pas d'accord sur la pluie de cet après-midi, on te le dit. Sinon on ne t'encombre pas.
-
-Sept jours à faire défiler quand tu prépares la semaine, sans transformer l'écran en console de données.
-
-LE WIDGET
-
-« Tenue du jour » sur l'écran d'accueil : la réponse est là avant même d'ouvrir l'app. Deux tailles, contenu volontairement court.
-
-SANS FRICTION
-
-Aucun compte. Aucun réglage à remplir. L'app trouve ta position, ou tu cherches ta ville — et elle s'en souvient.
-
-Prévisions Open-Meteo. Pas de publicité, pas de pistage, pas de revente de données.
+Quoi porter aujourd’hui ? Votre tenue selon la météo : vêtements, couche, chaussures et ce qu’il faut emporter. Sans compte.
 ```
 
-**Mots-clés** (100 max — 97 utilisés · séparés par des virgules, sans espace après)
+**Description** (4000 max — ~1360 utilisés)
 
 ```
-météo,vêtements,habits,pluie,froid,quoi mettre,s'habiller,prévisions,widget,matin,parapluie,veste
+Vous vous demandez quoi porter aujourd’hui ? QuoiPorter transforme la météo de votre ville en tenue complète : vêtements, couche, chaussures et ce qu’il faut emporter.
+
+Ouvrez l’app le matin et voyez tout de suite quoi mettre. La tenue passe avant les chiffres météo, avec des mots simples plutôt qu’un écran chargé de données.
+
+POUR LA MÉTÉO QUI VOUS ATTEND VRAIMENT
+
+La température ressentie compte plus que le chiffre brut. Huit degrés au soleil ne demandent pas les mêmes vêtements que huit degrés avec du vent.
+
+Pluie, froid, chaleur, UV et rafales apparaissent seulement s’ils changent votre journée. Quand les prévisions ne sont pas d’accord et que la tenue peut varier, QuoiPorter le dit clairement.
+
+PRÉPAREZ LA SEMAINE
+
+Faites défiler les sept prochains jours pour anticiper une averse, un coup de froid ou une journée chaude. Le déroulé montre quand les conditions changent, sans vous obliger à lire un bulletin météo entier.
+
+LE WIDGET « TENUE DU JOUR »
+
+Gardez la réponse sur votre écran d’accueil : la tenue conseillée, la température et le principal point d’attention restent visibles sans ouvrir l’app.
+
+SANS COMPTE, SANS PUBLICITÉ
+
+Choisissez votre position ou recherchez votre ville. QuoiPorter la garde sur votre téléphone. Pas de compte, pas de publicité, pas de pistage, pas de revente de données.
+
+Prévisions météo fournies par Open-Meteo.
 ```
 
-> « tenue » est déjà dans le sous-titre : inutile de le répéter ici, Apple indexe les deux.
+**Mots-clés** (100 octets max — 99 utilisés · séparés par des virgules, sans espace après)
 
-**Nouveautés de cette version** — laisser vide pour un premier envoi (champ réservé aux mises à jour).
+```
+habits,vêtements,quoi mettre,prévisions,pluie,froid,parapluie,veste,widget,température ressentie
+```
+
+> « tenue », « météo » et « s’habiller » sont déjà dans le nom ou le sous-titre : inutile
+> de les répéter. Apple recommande d’éviter les doublons, les pluriels redondants, les noms
+> de catégories et les termes de concurrents dans ce champ.
+
+**Nouveautés de la version 1.1.0** — le texte publié est dans
+[`nouveautes-1.1.0.txt`](nouveautes-1.1.0.txt).
+
+> La prochaine version devra décrire un vrai changement visible dans l’app. Ne pas soumettre
+> un texte de nouveautés fictif uniquement pour modifier les métadonnées.
 
 ---
 
