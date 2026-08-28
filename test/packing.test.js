@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildTrip, isTrip } from '../js/packing.js';
+import { buildTrip, isTrip, quantityFor } from '../js/packing.js';
 
 const MORNING = new Date('2026-09-01T08:00:00Z');
 
@@ -304,4 +304,163 @@ test('deux étapes à la même date ne font pas un voyage lisible', () => {
   };
 
   assert.equal(isTrip(trip), false, 'deux étapes ne peuvent pas commencer le même jour');
+});
+
+/* ------------------------------------------------------------- les quantités */
+
+/** Un séjour d'une ville, un ressenti par jour, à partir du 2 septembre. */
+function sejour(feelsLikes, overridesParJour = {}) {
+  const dates = feelsLikes.map((_, i) => nextIso('2026-09-02', i));
+
+  return {
+    trip: {
+      id: 'trip-q',
+      start: dates[0],
+      end: dates[dates.length - 1],
+      stops: [{ place: LISBONNE, from: dates[0] }],
+      packed: [],
+    },
+    forecasts: [feelsLikes.map((f, i) => day(dates[i], f, overridesParJour[i] ?? {}))],
+  };
+}
+
+/** `n` jours après une date ISO courte. */
+function nextIso(date, n) {
+  const t = new Date(`${date}T12:00:00Z`).getTime() + n * 24 * 3600 * 1000;
+  return new Date(t).toISOString().slice(0, 10);
+}
+
+/** La ligne d'une racine donnée, ou undefined. */
+function ligne(valise, key) {
+  return valise.wear.find((item) => item.key === key);
+}
+
+test('cinq jours dont deux frais ne donnent qu’un pull', () => {
+  // C'est la règle qui distingue une valise d'une multiplication : la quantité
+  // vient des jours qui réclament la pièce, pas de la durée du séjour.
+  const { trip, forecasts } = sejour([22, 22, 22, 10, 10]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const pull = ligne(valise, 'pull');
+  assert.equal(pull.count, 1);
+  assert.deepEqual(pull.days, ['2026-09-05', '2026-09-06']);
+});
+
+test('les pièces à même la peau se renouvellent chaque jour', () => {
+  const { trip, forecasts } = sejour([22, 22, 22]);
+
+  assert.equal(ligne(buildTrip(trip, forecasts, MORNING), 't-shirt').count, 3);
+});
+
+test('au-delà de sept jours on lave, et la ligne le signale', () => {
+  const { trip, forecasts } = sejour(Array.from({ length: 10 }, () => 22));
+  const tshirt = ligne(buildTrip(trip, forecasts, MORNING), 't-shirt');
+
+  assert.equal(tshirt.count, 7);
+  assert.equal(tshirt.capped, true);
+  assert.equal(tshirt.days.length, 10, 'les dix jours restent la raison de la ligne');
+});
+
+test('un séjour court ne lève pas le plafond', () => {
+  const { trip, forecasts } = sejour([22, 22, 22]);
+
+  assert.equal(ligne(buildTrip(trip, forecasts, MORNING), 't-shirt').capped, false);
+});
+
+test('le bas se renouvelle un pour quatre jours', () => {
+  const { trip, forecasts } = sejour(Array.from({ length: 5 }, () => 22));
+
+  assert.equal(ligne(buildTrip(trip, forecasts, MORNING), 'pantalon').count, 2);
+});
+
+test('short et jean coexistent : deux racines, deux lignes', () => {
+  const { trip, forecasts } = sejour([27, 27, 10, 10]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  assert.equal(ligne(valise, 'short').count, 1);
+  assert.equal(ligne(valise, 'jean').count, 1);
+});
+
+test('deux villes ne font qu’une liste', () => {
+  // L'union ne s'est jamais souciée d'où venait la journée : le multi-étapes ne
+  // doit rien coûter à l'agrégation.
+  const trip = {
+    id: 'trip-m',
+    start: '2026-09-02',
+    end: '2026-09-05',
+    stops: [
+      { place: LISBONNE, from: '2026-09-02' },
+      { place: PORTO, from: '2026-09-04' },
+    ],
+    packed: [],
+  };
+  const dates = ['2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+  const forecasts = [dates.map((d) => day(d, 10)), dates.map((d) => day(d, 10))];
+
+  const pull = ligne(buildTrip(trip, forecasts, MORNING), 'pull');
+  assert.equal(pull.count, 2, 'quatre jours de pull, un pour trois');
+  assert.deepEqual(pull.days, dates, 'les jours des deux villes, dans l’ordre');
+});
+
+test('jamais deux couches extérieures : la plus couvrante gagne', () => {
+  // Un jour de pluie à 20 °C réclame un imperméable, un jour sec à 2 °C un
+  // manteau. On n'emporte pas les deux — et le parapluie du jour humide est
+  // déjà dans ce qu'on emporte.
+  const { trip, forecasts } = sejour([20, 2], {
+    0: { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 },
+  });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const couche = ligne(valise, 'couche');
+  assert.equal(couche.count, 1);
+  assert.deepEqual(couche.pieces, [{ name: 'manteau', count: 1 }]);
+  assert.equal(valise.wear.filter((i) => i.key === 'couche').length, 1);
+});
+
+test('ce qu’on emporte compte un exemplaire, quel que soit le nombre de jours', () => {
+  const pluvieux = { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 };
+  const { trip, forecasts } = sejour([16, 16, 16], { 0: pluvieux, 1: pluvieux, 2: pluvieux });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const parapluies = valise.carry.filter((item) => item.key === 'parapluie');
+  assert.equal(parapluies.length, 1);
+  assert.equal(parapluies[0].days.length, 3, 'les trois jours restent la raison');
+});
+
+test('le grand froid renouvelle sa sous-couche, pas son pull', () => {
+  const { trip, forecasts } = sejour([-8, -8, -8, -8, -8, -8]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  assert.equal(ligne(valise, 'sous-couche').count, 6, 'la sous-couche est une pièce de peau');
+  assert.equal(ligne(valise, 'pull').count, 2, 'six jours de pull épais, un pour trois');
+});
+
+test('une racine inconnue du barème tombe dans la classe relais', () => {
+  // Un palier ajouté plus tard, un mot changé dans rules.js : mieux vaut une
+  // pièce de trop qu'une pièce oubliée. Aucune prévision réelle ne peut
+  // produire cette racine aujourd'hui — d'où l'appel direct.
+  assert.deepEqual(quantityFor('poncho', 6), { count: 2, capped: false });
+  assert.deepEqual(quantityFor('poncho', 1), { count: 1, capped: false });
+});
+
+test('le plafond ne s’applique qu’aux pièces de peau', () => {
+  assert.deepEqual(quantityFor('t-shirt', 10), { count: 7, capped: true });
+  assert.deepEqual(quantityFor('pull', 30), { count: 10, capped: false });
+  assert.deepEqual(quantityFor('couche', 30), { count: 1, capped: false });
+});
+
+test('le vestiaire choisi traverse l’agrégation', () => {
+  const { trip, forecasts } = sejour([27, 27]);
+  const valise = buildTrip(trip, forecasts, MORNING, 'femme');
+
+  assert.match(ligne(valise, 'short').pieces[0].name, /jupe/);
+});
+
+test('les jours d’une ligne nomment les journées qui la réclament, dans l’ordre', () => {
+  const { trip, forecasts } = sejour([22, 10, 22, 10]);
+
+  assert.deepEqual(ligne(buildTrip(trip, forecasts, MORNING), 'pull').days, [
+    '2026-09-03',
+    '2026-09-05',
+  ]);
 });
