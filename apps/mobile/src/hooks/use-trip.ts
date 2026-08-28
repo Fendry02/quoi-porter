@@ -55,6 +55,11 @@ export function useTrip(profile: Profile | null) {
   const [forecasts, setForecasts] = useState<DayWeather[][]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // `trips` vaut `[]` à la fois avant la lecture du disque et une fois
+  // qu'on sait la bibliothèque vide : sans ce drapeau, rien ne distingue
+  // « pas encore lu » de « lu, et il n'y a rien ». Seul `pret` porte cette
+  // distinction.
+  const [pret, setPret] = useState(false);
 
   // Le voyage courant : celui qu'on regarde, sinon le premier dont la fin n'est
   // pas passée. Un séjour terminé n'ouvre pas une valise pour un voyage fini.
@@ -73,7 +78,12 @@ export function useTrip(profile: Profile | null) {
         if (vivant) setTrips(stored);
       })
       .finally(() => {
-        if (vivant) setLoading(false);
+        // Pas `setLoading(false)` ici : tant qu'on ne sait pas s'il existe un
+        // voyage courant, dire qu'on a fini de charger serait faux, que la
+        // réponse arrive ensuite d'un vrai voyage ou du constat qu'il n'y en
+        // a aucun. `pret` porte cette seule information — « la bibliothèque a
+        // été lue » — et laisse `load` décider seul du sort de `loading`.
+        if (vivant) setPret(true);
       });
 
     return () => {
@@ -140,13 +150,23 @@ export function useTrip(profile: Profile | null) {
     }
   }, []);
 
-  // `load` pose `loading`/`error` avant son premier `await` : appelée à même le
-  // corps de l'effet, la mise à jour serait synchrone et déclencherait un rendu
-  // en cascade. Un tour de micro-tâche la reporte, comme `refresh` dans
-  // `use-forecast.ts`.
+  // On attend d'avoir lu la bibliothèque avant de charger quoi que ce soit :
+  // partir plus tôt ferait passer `trip` pour `null` au sens de « aucun
+  // voyage », alors qu'il ne vaut encore `null` que parce que `trips` n'a pas
+  // fini de se lire. `load(null)` conclurait alors à tort, dès le montage, et
+  // `loading` retomberait à `false` avant même de savoir si un vrai voyage
+  // attend derrière. Même garde que `profile === null` dans
+  // `use-forecast.ts`, pour la même raison : ne pas tirer de conclusion avant
+  // d'avoir la donnée qui permet de la tirer.
+  //
+  // `load` pose aussi `loading`/`error` avant son premier `await` : appelée à
+  // même le corps de l'effet, la mise à jour serait synchrone et
+  // déclencherait un rendu en cascade. Un tour de micro-tâche la reporte,
+  // comme `refresh` dans `use-forecast.ts`.
   useEffect(() => {
+    if (!pret) return;
     void Promise.resolve().then(() => load(trip));
-  }, [load, trip]);
+  }, [load, trip, pret]);
 
   const packing = useMemo<Packing | null>(() => {
     if (!trip || forecasts.length === 0) return null;
