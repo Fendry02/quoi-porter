@@ -93,7 +93,16 @@ export function useTrip(profile: Profile | null) {
     const ici = ++generation.current;
 
     if (!cible) {
+      // État terminal d'« aucun voyage » : rien ne charge, rien n'a échoué,
+      // donc les trois s'écrivent ici. La garde de génération empêche
+      // justement un appel dépassé de venir remettre `loading`/`error` à
+      // plat à notre place — ce `setLoading(false)` défait le
+      // `setLoading(true)` d'un appel précédent encore en vol, pas le sien,
+      // et `setError(null)` efface pareillement la bannière d'un échec dont
+      // le voyage vient de disparaître.
       setForecasts([]);
+      setLoading(false);
+      setError(null);
       return;
     }
 
