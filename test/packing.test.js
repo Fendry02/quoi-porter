@@ -590,6 +590,23 @@ test('le texte d’un risque est celui du jour le plus sévère', () => {
   assert.match(pluie.text, /va bien pleuvoir/);
 });
 
+test('le jour le plus sévère garde la main sur celui qui suit, libellé compris', () => {
+  // Complète le test précédent dans l'autre sens : ici c'est le pire jour qui
+  // vient en premier. Un bug « le dernier jour écrase tout » lui substituerait
+  // le jour bénin qui suit — les deux jours diffèrent aussi de sorte (neige
+  // puis pluie), pour verrouiller que le libellé voyage avec le texte et la
+  // sévérité, et non l'un sans les autres.
+  const neige = { precipitationProbability: 90, precipitationMm: 5, weatherCode: 75 };
+  const bruine = { precipitationProbability: 45, precipitationMm: 0.5, weatherCode: 61 };
+  const { trip, forecasts } = sejour([16, 16], { 0: neige, 1: bruine });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const pluie = valise.notes.find((n) => n.kind === 'rain');
+  assert.equal(pluie.severity, 'high');
+  assert.equal(pluie.label, 'Neige');
+  assert.match(pluie.text, /neiger/);
+});
+
 test('les risques les plus sévères passent devant', () => {
   const orageux = {
     precipitationProbability: 95,
