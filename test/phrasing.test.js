@@ -643,6 +643,53 @@ test('deux poids se lisent en une ligne et son détail', () => {
   assert.equal(mots.wear[0].detail, 'un épais, un fin');
 });
 
+test('un qualificatif qui porte une conjonction garde le nom entier', () => {
+  // La garde-robe « femme » range « pantalon » et « pantalon léger ou jupe »
+  // sous la même racine : tronquer au nom court laisserait « ou jupe », qui a
+  // perdu son sujet.
+  const mots = describePacking(
+    valise({
+      wear: [
+        {
+          key: 'pantalon',
+          count: 2,
+          pieces: [
+            { name: 'pantalon léger ou jupe', count: 1 },
+            { name: 'pantalon ou jupe', count: 1 },
+          ],
+          days: ['2026-09-02', '2026-09-03'],
+          capped: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(mots.wear[0].detail, 'un pantalon léger ou jupe, un pantalon ou jupe');
+});
+
+test('un qualificatif sans conjonction reste condensé', () => {
+  // Garde-fou : le cas « pull épais / pull fin » ci-dessus doit rester aussi
+  // court qu'avant la conjonction traitée juste au-dessus.
+  const mots = describePacking(
+    valise({
+      wear: [
+        {
+          key: 'pull',
+          count: 2,
+          pieces: [
+            { name: 'pull épais', count: 1 },
+            { name: 'pull fin', count: 1 },
+          ],
+          days: ['2026-09-02', '2026-09-03'],
+          capped: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(mots.wear[0].detail, 'un épais, un fin');
+});
+
 test('le plafond dit pourquoi il plafonne', () => {
   const dix = Array.from({ length: 10 }, (_, i) => `2026-09-${String(2 + i).padStart(2, '0')}`);
   const mots = describePacking(
@@ -697,6 +744,7 @@ test('un risque porte ses jours, pas ses heures', () => {
   );
 
   assert.equal(mots.notes[0].label, 'Pluie');
+  assert.equal(mots.notes[0].text, 'Il va bien pleuvoir.');
   assert.equal(mots.notes[0].when, 'mer. 2 sept. et ven. 4 sept.');
 });
 

@@ -339,10 +339,19 @@ function pluralOf(name) {
     .join(' ');
 }
 
-/** Le qualificatif d'un poids : « pull épais » sous la racine « pull » → « épais ». */
+/**
+ * Le qualificatif d'un poids : « pull épais » sous la racine « pull » → « épais ».
+ *
+ * Le reste n'est un qualificatif isolable que s'il ne porte aucune conjonction :
+ * « pantalon ou jupe » sous la racine « pantalon » laisserait « ou jupe », qui a
+ * perdu son nom. Dans ce cas on regarde le nom entier plutôt que le fragment.
+ */
 function qualifierOf(name, key) {
   const reste = name.startsWith(key) ? name.slice(key.length).trim() : '';
-  return reste || name;
+  if (!reste) return name;
+
+  const detache = reste.split(' ').some((mot) => INVARIABLES.has(mot));
+  return detache ? name : reste;
 }
 
 /** Les jours d'une ligne, en mots. */
