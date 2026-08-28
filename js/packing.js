@@ -24,6 +24,12 @@ import { buildOutfit } from './rules.js';
  * une règle du domaine, et c'est le seul endroit où elle peut être testée sous
  * Node. Un voyage écarté vaut mieux qu'un écran qui n'ouvre plus.
  *
+ * L'ordre chronologique des étapes fait partie de ce contrat, pas seulement la
+ * date de la première : `legsOf` accouple chaque étape à sa prévision avant de
+ * trier, justement pour qu'un tri ne puisse jamais faire office de validation.
+ * Sans cette exigence ici, une étape reculée ou redondante resterait
+ * représentable, et se ferait réinterpréter en silence plus loin.
+ *
  * @param {unknown} trip
  * @returns {boolean}
  */
@@ -37,6 +43,12 @@ export function isTrip(trip) {
   // La première étape commence au départ, sans quoi le premier jour du séjour
   // n'aurait aucune ville à laquelle se rattacher.
   if (stops[0].from !== start) return false;
+
+  // Chaque étape suivante doit avancer dans le temps : une date répétée ou
+  // reculée ne décrit aucun voyage réel, et ce n'est pas à un tri de deviner
+  // l'ordre qu'on a voulu dire.
+  const inOrder = stops.every((stop, index) => index === 0 || stop.from > stops[index - 1].from);
+  if (!inOrder) return false;
 
   return stops.every(
     (stop) =>
@@ -60,20 +72,32 @@ function datesBetween(from, to) {
 }
 
 /**
- * Les étapes avec leurs bornes, déduites de la seule chose que le voyage
- * connaisse : le jour où l'on arrive dans chaque ville.
+ * Les étapes avec leurs bornes et leur prévision, déduites de la seule chose
+ * que le voyage connaisse : le jour où l'on arrive dans chaque ville.
  *
  * Une étape court jusqu'à la veille de la suivante, la dernière jusqu'au retour.
  * C'est ce qui rend les trous et les chevauchements inexprimables : il n'y a
  * qu'une date par étape, donc rien à faire concorder.
+ *
+ * `forecasts` est accouplé à chaque étape *avant* le tri, par leur position
+ * commune dans `trip.stops` telle que donnée. `isTrip` garantit déjà l'ordre
+ * chronologique ; le tri qui suit n'est donc plus qu'une normalisation
+ * défensive, jamais le moyen par lequel une étape trouve sa prévision — sans
+ * quoi une étape mal ordonnée referait correspondre le mauvais accouplement
+ * en silence.
  */
-function legsOf(trip) {
-  const stops = [...(trip.stops ?? [])].sort((a, b) => (a.from < b.from ? -1 : 1));
+function legsOf(trip, forecasts) {
+  const pairs = (trip.stops ?? []).map((stop, index) => ({
+    stop,
+    forecast: forecasts[index] ?? [],
+  }));
+  pairs.sort((a, b) => (a.stop.from < b.stop.from ? -1 : a.stop.from > b.stop.from ? 1 : 0));
 
-  return stops.map((stop, index) => ({
+  return pairs.map(({ stop, forecast }, index) => ({
     place: stop.place,
     from: stop.from,
-    to: index + 1 < stops.length ? previousDate(stops[index + 1].from) : trip.end,
+    to: index + 1 < pairs.length ? previousDate(pairs[index + 1].stop.from) : trip.end,
+    forecast,
   }));
 }
 
@@ -96,15 +120,14 @@ export function buildTrip(trip, forecasts, at = new Date(), profile = null) {
   const covered = [];
   const missing = [];
 
-  legsOf(trip).forEach((leg, index) => {
-    const prevision = forecasts[index] ?? [];
-    const parDate = new Map(prevision.map((weather) => [weather.date, weather]));
+  legsOf(trip, forecasts).forEach((leg) => {
+    const parDate = new Map(leg.forecast.map((weather) => [weather.date, weather]));
 
     // « Aujourd'hui » se juge à la date du lieu de l'étape : un séjour à Tokyo
     // n'a pas la même date d'aujourd'hui qu'un téléphone à Paris. On prend le
     // décalage de la prévision quand on l'a, faute de quoi celui du premier
     // jour connu, faute de quoi zéro.
-    const offset = prevision[0]?.utcOffsetSeconds ?? 0;
+    const offset = leg.forecast[0]?.utcOffsetSeconds ?? 0;
     const aujourdhui = placeDate(at, offset);
 
     for (const date of datesBetween(leg.from, leg.to)) {

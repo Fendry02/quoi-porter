@@ -210,6 +210,42 @@ test('une étape retirée rend ses jours à la précédente', () => {
   assert.equal(sans.days.filter((j) => j.place === LISBONNE).length, 4);
 });
 
+test('chaque jour reste apparié à la prévision de sa propre étape, même donnée dans le désordre', () => {
+  // C'est le scénario qui aurait attrapé un tri qui réordonne les étapes sans
+  // emporter leur prévision : Porto récupérerait alors les jours de Lisbonne,
+  // et inversement, sans qu'aucune erreur ne le signale.
+  const trip = {
+    id: 'trip-9',
+    start: '2026-09-02',
+    end: '2026-09-05',
+    stops: [
+      { place: PORTO, from: '2026-09-04' },
+      { place: LISBONNE, from: '2026-09-02' },
+    ],
+    packed: [],
+  };
+  const dates = ['2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'];
+  const forecasts = [
+    dates.map((d) => day(d, 6)), // la prévision de Porto : assez froid pour un pull
+    dates.map((d) => day(d, 28)), // la prévision de Lisbonne : assez chaud pour un short
+  ];
+
+  const jours = buildTrip(trip, forecasts, MORNING).days;
+  const lisbonne = jours.filter((j) => j.place === LISBONNE);
+  const porto = jours.filter((j) => j.place === PORTO);
+
+  assert.equal(lisbonne.length, 2);
+  assert.equal(porto.length, 2);
+  assert.ok(
+    lisbonne.every((j) => j.outfit.layers.bottom === 'short'),
+    'Lisbonne garde sa propre prévision, la chaude',
+  );
+  assert.ok(
+    porto.every((j) => j.outfit.layers.top.includes('pull')),
+    'Porto garde sa propre prévision, la froide',
+  );
+});
+
 /* --------------------------------------------------- ce qu'on lit du disque */
 
 test('un voyage lisible est reconnu, un voyage abîmé est écarté', () => {
@@ -234,4 +270,38 @@ test('un voyage lisible est reconnu, un voyage abîmé est écarté', () => {
   assert.equal(isTrip({ ...bon, start: undefined }), false);
   assert.equal(isTrip({ ...bon, stops: [{ place: { name: 'X' }, from: '2026-09-02' }] }), false);
   assert.equal(isTrip(null), false);
+});
+
+test('des étapes données dans le désordre ne font pas un voyage lisible', () => {
+  // Sans cette règle, `legsOf` réordonnerait les étapes en silence pour
+  // rétablir la chronologie — et déciderait, à la place de l'appelant, ce
+  // que ce voyage voulait dire.
+  const trip = {
+    id: 'trip-10',
+    start: '2026-09-02',
+    end: '2026-09-06',
+    stops: [
+      { place: LISBONNE, from: '2026-09-02' },
+      { place: PORTO, from: '2026-09-05' },
+      { place: LISBONNE, from: '2026-09-04' },
+    ],
+    packed: [],
+  };
+
+  assert.equal(isTrip(trip), false, 'une étape ne peut pas commencer avant la précédente');
+});
+
+test('deux étapes à la même date ne font pas un voyage lisible', () => {
+  const trip = {
+    id: 'trip-11',
+    start: '2026-09-02',
+    end: '2026-09-04',
+    stops: [
+      { place: LISBONNE, from: '2026-09-02' },
+      { place: PORTO, from: '2026-09-02' },
+    ],
+    packed: [],
+  };
+
+  assert.equal(isTrip(trip), false, 'deux étapes ne peuvent pas commencer le même jour');
 });
