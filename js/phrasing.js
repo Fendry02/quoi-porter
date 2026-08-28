@@ -21,7 +21,7 @@
  * l'autre. La tenue, elle, ne varie jamais — c'est un fait, pas une tournure.
  */
 
-import { relevantHours, spanOf, peakOf, phraseSpan, NBSP } from './hours.js';
+import { relevantHours, spanOf, peakOf, phraseSpan, dayLabel, NBSP } from './hours.js';
 import { dressingPoint, outfitIsRobust } from './rules.js';
 
 /**
@@ -312,4 +312,145 @@ export function versusYesterday(today, yesterday) {
 
   const degres = Math.round(Math.abs(ecart));
   return `${degres}${NBSP}°C de ${ecart > 0 ? 'plus' : 'moins'} qu’hier.`;
+}
+
+/* -------------------------------------------------------------- la valise */
+
+/** Mots des petits nombres, pour les détails de poids. */
+const EXEMPLAIRES = ['zéro', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept'];
+
+/**
+ * Les mots qui ne prennent pas la marque du pluriel dans un nom de vêtement.
+ *
+ * « pantalon léger ou jupe » donne « pantalons légers ou jupes » : la
+ * conjonction reste, tout le reste s'accorde. Une table de noms complets aurait
+ * pourri au premier palier ajouté dans `rules.js`.
+ */
+const INVARIABLES = new Set(['ou', 'et', 'de', 'à', 'la', 'le']);
+
+/** Le pluriel d'un nom de vêtement, mot à mot. */
+function pluralOf(name) {
+  return name
+    .split(' ')
+    .map((mot) => {
+      if (INVARIABLES.has(mot)) return mot;
+      return /[sx]$/.test(mot) ? mot : `${mot}s`;
+    })
+    .join(' ');
+}
+
+/** Le qualificatif d'un poids : « pull épais » sous la racine « pull » → « épais ». */
+function qualifierOf(name, key) {
+  const reste = name.startsWith(key) ? name.slice(key.length).trim() : '';
+  return reste || name;
+}
+
+/** Les jours d'une ligne, en mots. */
+function whenDays(dates, total) {
+  if (dates.length === 0) return 'aucun jour';
+  if (total > 0 && dates.length >= total) return 'tous les jours';
+
+  return enumerate(dates.map((date) => dayLabel(date, false)));
+}
+
+/** « 2 → 4 sept. », ou « 30 août → 2 sept. » à cheval sur deux mois. */
+function phraseDates(start, end) {
+  const jourEtMois = (date) =>
+    new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(
+      new Date(`${date}T12:00:00`),
+    );
+  const mois = (date) => jourEtMois(date).split(' ').slice(1).join(' ');
+  const jour = (date) => jourEtMois(date).split(' ')[0];
+
+  return mois(start) === mois(end)
+    ? `${jour(start)} → ${jourEtMois(end)}`
+    : `${jourEtMois(start)} → ${jourEtMois(end)}`;
+}
+
+/** Au-dessous de ce nombre de modèles, la prévision ne se mesure plus vraiment. */
+const THIN_ENSEMBLE = 3;
+
+/** Le nombre de centres interrogés, pour le dire en toutes lettres. */
+const CENTRES = 5;
+
+/**
+ * Ce que la valise ne peut pas promettre.
+ *
+ * Au-delà du septième jour, Météo-France et l'ICON ont cessé de publier : il ne
+ * reste qu'ECMWF et GFS, puis GFS seul. L'écart entre deux modèles ressemble à
+ * l'écart entre cinq, en plus petit — et taire cette différence rendrait l'app
+ * la plus sûre d'elle là où elle en sait le moins.
+ */
+function ensembleWarning(days) {
+  const maigre = days.find((jour) => (jour.weather?.modelCount ?? CENTRES) < THIN_ENSEMBLE);
+  if (!maigre) return null;
+
+  const combien = maigre.weather.modelCount;
+  return `À partir du ${dayLabel(maigre.id, false)}, ${combien} centre${combien > 1 ? 's' : ''} de prévision sur ${CENTRES} répond${combien > 1 ? 'ent' : ''} encore — la liste peut bouger.`;
+}
+
+/** Les jours du séjour que la prévision n'atteint pas encore. */
+function horizonWarning(missing) {
+  if (missing.length === 0) return null;
+
+  if (missing.length === 1) {
+    return 'Le dernier jour est trop loin : la météo n’existe pas encore pour lui.';
+  }
+
+  return `Les ${missing.length} derniers jours sont trop loin : la météo n’existe pas encore pour eux.`;
+}
+
+/**
+ * La valise en mots.
+ *
+ * Aucune date ISO n'en sort : l'écran n'a plus rien à formater, et la mise en
+ * mots ne vit qu'à un seul endroit.
+ *
+ * @param {object} packing un Packing produit par `js/packing.js`
+ */
+export function describePacking(packing) {
+  const total = packing.horizon.covered.length;
+
+  return {
+    title: enumerateStops(packing.trip.stops),
+    dates: phraseDates(packing.trip.start, packing.trip.end),
+    wear: packing.wear.map((item) => {
+      const unSeulPoids = item.pieces.length === 1;
+      const piece = item.pieces[0];
+
+      return {
+        key: item.key,
+        label: unSeulPoids
+          ? `${item.count} ${item.count > 1 ? pluralOf(piece.name) : piece.name}`
+          : `${item.count} ${pluralOf(item.key)}`,
+        detail: unSeulPoids
+          ? null
+          : item.pieces
+              .map((p) => `${EXEMPLAIRES[p.count] ?? p.count} ${qualifierOf(p.name, item.key)}`)
+              .join(', '),
+        why: item.capped
+          ? `${whenDays(item.days, total)} — au-delà, tu laveras`
+          : whenDays(item.days, total),
+      };
+    }),
+    carry: packing.carry.map((item) => ({
+      key: item.key,
+      label: ARTICLES[item.key] ?? item.key,
+      why: whenDays(item.days, total),
+    })),
+    notes: packing.notes.map((note) => ({
+      label: note.label,
+      text: note.text,
+      when: whenDays(note.days, total),
+    })),
+    confidence: ensembleWarning(packing.days),
+    horizon: horizonWarning(packing.horizon.missing),
+  };
+}
+
+/** Les villes du séjour, sans région ni pays — elles ne tiennent pas en titre. */
+function enumerateStops(stops) {
+  return (stops ?? [])
+    .map((stop) => stop.place.name.split(',')[0].trim())
+    .join(' → ');
 }

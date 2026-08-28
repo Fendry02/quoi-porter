@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildOutfit } from '../js/rules.js';
-import { describeDay, pageTitle, versusYesterday } from '../js/phrasing.js';
+import { describeDay, describePacking, pageTitle, versusYesterday } from '../js/phrasing.js';
 
 /** Heures plates par défaut ; chaque test creuse celles qui l'intéressent. */
 function flatHours(feelsLike) {
@@ -561,4 +561,177 @@ test('la comparaison porte sur le point d’habillage, pas sur le maximum', () =
   const aujourdhui = calmDay({ feelsLikeMin: 8, feelsLikeMax: 18 });
 
   assert.match(versusYesterday(aujourdhui, hier), /moins/i);
+});
+
+/* ------------------------------------------------------- la valise en mots */
+
+/** Un Packing minimal, sans passer par buildTrip : on teste les mots ici. */
+function valise(overrides = {}) {
+  return {
+    trip: {
+      id: 'trip-1',
+      start: '2026-09-02',
+      end: '2026-09-04',
+      stops: [
+        { place: { name: 'Lisbonne, Portugal' }, from: '2026-09-02' },
+        { place: { name: 'Porto, Portugal' }, from: '2026-09-04' },
+      ],
+      packed: [],
+    },
+    days: [],
+    wear: [],
+    carry: [],
+    notes: [],
+    horizon: { covered: ['2026-09-02', '2026-09-03', '2026-09-04'], missing: [] },
+    ...overrides,
+  };
+}
+
+test('le titre enchaîne les villes, sans leur pays', () => {
+  const mots = describePacking(valise());
+
+  assert.equal(mots.title, 'Lisbonne → Porto');
+  assert.equal(mots.dates, '2 → 4 sept.');
+});
+
+test('un séjour à cheval sur deux mois nomme les deux', () => {
+  const mots = describePacking(
+    valise({ trip: { ...valise().trip, start: '2026-08-30', end: '2026-09-02' } }),
+  );
+
+  assert.equal(mots.dates, '30 août → 2 sept.');
+});
+
+test('une pièce en plusieurs exemplaires se met au pluriel', () => {
+  const mots = describePacking(
+    valise({
+      wear: [
+        {
+          key: 't-shirt',
+          count: 4,
+          pieces: [{ name: 't-shirt léger', count: 4 }],
+          days: ['2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05'],
+          capped: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(mots.wear[0].label, '4 t-shirts légers');
+  assert.equal(mots.wear[0].detail, null, 'un seul poids ne demande aucun détail');
+});
+
+test('deux poids se lisent en une ligne et son détail', () => {
+  const mots = describePacking(
+    valise({
+      wear: [
+        {
+          key: 'pull',
+          count: 2,
+          pieces: [
+            { name: 'pull épais', count: 1 },
+            { name: 'pull fin', count: 1 },
+          ],
+          days: ['2026-09-02', '2026-09-03'],
+          capped: false,
+        },
+      ],
+    }),
+  );
+
+  assert.equal(mots.wear[0].label, '2 pulls');
+  assert.equal(mots.wear[0].detail, 'un épais, un fin');
+});
+
+test('le plafond dit pourquoi il plafonne', () => {
+  const dix = Array.from({ length: 10 }, (_, i) => `2026-09-${String(2 + i).padStart(2, '0')}`);
+  const mots = describePacking(
+    valise({
+      wear: [
+        { key: 't-shirt', count: 7, pieces: [{ name: 't-shirt', count: 7 }], days: dix, capped: true },
+      ],
+    }),
+  );
+
+  assert.equal(mots.wear[0].label, '7 t-shirts');
+  assert.match(mots.wear[0].why, /laveras/);
+});
+
+test('la raison d’une ligne nomme ses jours, et dit « tous les jours » quand c’est le cas', () => {
+  const tous = ['2026-09-02', '2026-09-03', '2026-09-04'];
+  const mots = describePacking(
+    valise({
+      wear: [
+        { key: 't-shirt', count: 3, pieces: [{ name: 't-shirt', count: 3 }], days: tous, capped: false },
+        { key: 'pull', count: 1, pieces: [{ name: 'pull', count: 1 }], days: ['2026-09-03'], capped: false },
+      ],
+    }),
+  );
+
+  assert.equal(mots.wear[0].why, 'tous les jours');
+  assert.equal(mots.wear[1].why, 'jeu. 3 sept.');
+});
+
+test('ce qu’on emporte prend son article', () => {
+  const mots = describePacking(
+    valise({ carry: [{ key: 'parapluie', days: ['2026-09-03'] }] }),
+  );
+
+  assert.equal(mots.carry[0].label, 'un parapluie');
+  assert.equal(mots.carry[0].why, 'jeu. 3 sept.');
+});
+
+test('un risque porte ses jours, pas ses heures', () => {
+  const mots = describePacking(
+    valise({
+      notes: [
+        {
+          kind: 'rain',
+          label: 'Pluie',
+          text: 'Il va bien pleuvoir.',
+          severity: 'high',
+          days: ['2026-09-02', '2026-09-04'],
+        },
+      ],
+    }),
+  );
+
+  assert.equal(mots.notes[0].label, 'Pluie');
+  assert.equal(mots.notes[0].when, 'mer. 2 sept. et ven. 4 sept.');
+});
+
+test('la ligne de confiance apparaît dès qu’un jour tombe sous trois modèles', () => {
+  const mots = describePacking(
+    valise({
+      days: [
+        { id: '2026-09-02', weather: { modelCount: 5 } },
+        { id: '2026-09-03', weather: { modelCount: 2 } },
+        { id: '2026-09-04', weather: { modelCount: 2 } },
+      ],
+    }),
+  );
+
+  assert.match(mots.confidence, /2 centres de prévision sur 5/);
+  assert.match(mots.confidence, /jeu\. 3 sept\./, 'on dit à partir de quand');
+});
+
+test('la confiance se tait quand tous les modèles répondent', () => {
+  const mots = describePacking(
+    valise({ days: [{ id: '2026-09-02', weather: { modelCount: 5 } }] }),
+  );
+
+  assert.equal(mots.confidence, null);
+});
+
+test('les jours hors fenêtre se disent, et se taisent quand il n’y en a pas', () => {
+  const avec = describePacking(
+    valise({ horizon: { covered: ['2026-09-02'], missing: ['2026-09-03', '2026-09-04'] } }),
+  );
+  const unSeul = describePacking(
+    valise({ horizon: { covered: ['2026-09-02'], missing: ['2026-09-03'] } }),
+  );
+
+  assert.match(avec.horizon, /2 derniers jours/);
+  assert.match(unSeul.horizon, /Le dernier jour/, 'un jour manquant ne se dit pas au pluriel');
+  assert.equal(describePacking(valise()).horizon, null);
 });
