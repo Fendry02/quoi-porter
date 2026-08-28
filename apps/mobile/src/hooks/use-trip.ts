@@ -11,7 +11,7 @@
  * d'écran d'erreur pour une ville sur trois.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { applyPacked, buildTrip, describePacking } from '@/core/packing';
 import { fetchForecast } from '@/core/weather';
@@ -81,7 +81,17 @@ export function useTrip(profile: Profile | null) {
     };
   }, []);
 
+  // Le numéro du dernier `load` lancé. `select` pendant qu'une prévision
+  // circule encore ne doit pas la laisser gagner : sans ce compteur, la
+  // réponse la plus lente écraserait `forecasts` en dernier, et la valise
+  // affichée mélangerait le voyage à l'écran avec la météo d'un voyage déjà
+  // quitté — silencieusement, puisque `legsOf` accouple par position et ne
+  // peut pas s'apercevoir que le couple ne correspond plus.
+  const generation = useRef(0);
+
   const load = useCallback(async (cible: Trip | null) => {
+    const ici = ++generation.current;
+
     if (!cible) {
       setForecasts([]);
       return;
@@ -106,6 +116,12 @@ export function useTrip(profile: Profile | null) {
         }
       }),
     );
+
+    // Une sélection plus récente est arrivée pendant l'attente : ce résultat
+    // décrit un voyage qu'on ne regarde déjà plus, il n'écrit rien. Un
+    // `refresh()` du voyage courant, lui, obtient son propre numéro et
+    // s'écrit normalement — seul un appel doublé par un autre est ignoré.
+    if (ici !== generation.current) return;
 
     setForecasts(resultats);
     setLoading(false);
