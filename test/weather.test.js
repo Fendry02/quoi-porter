@@ -76,6 +76,7 @@ test('reporte chaque champ de l’API sur le bon champ du contrat', () => {
     sunset: '2026-08-07T21:22',
     utcOffsetSeconds: 7200,
     feelsLikeSpread: null,
+    modelCount: 1,
   });
 });
 
@@ -130,6 +131,8 @@ test('une valeur nulle devient une valeur neutre, jamais null', () => {
       // réserve sur les conditions l'est tout autant quand personne ne
       // conteste le consensus.
       if (champ === 'feelsLikeSpread' || champ === 'conditionDissent') continue;
+      // hours est un tableau, modelCount est un nombre valide (même si zéro)
+      if (champ === 'hours' || champ === 'modelCount') continue;
       assert.notEqual(valeur, null, `${champ} ne doit jamais être null`);
       assert.notEqual(valeur, undefined, `${champ} ne doit jamais être undefined`);
     }
@@ -383,4 +386,43 @@ test('sans veille demandée, le paramètre reste absent', () => {
   const url = forecastUrl(48.8566, 2.3522, MODELS, 2);
 
   assert.equal(url.searchParams.get('past_days'), null);
+});
+
+test('chaque journée dit combien de modèles ont répondu', () => {
+  // Au douzième jour, Météo-France et l'ICON ont cessé de publier : la journée
+  // doit le dire, sinon l'app afficherait la même assurance qu'au premier jour.
+  const jours = normalizeForecast({
+    utc_offset_seconds: 0,
+    daily: {
+      time: ['2026-09-01', '2026-09-12'],
+      apparent_temperature_max_ecmwf_ifs025: [24, 25],
+      apparent_temperature_max_gfs_seamless: [23, 26],
+      apparent_temperature_max_meteofrance_seamless: [24, null],
+      apparent_temperature_max_icon_seamless: [25, null],
+      apparent_temperature_max_ukmo_seamless: [23, null],
+      apparent_temperature_min_ecmwf_ifs025: [14, 15],
+      temperature_2m_min_ecmwf_ifs025: [13, 14],
+      temperature_2m_max_ecmwf_ifs025: [24, 25],
+    },
+  });
+
+  assert.equal(jours[0].modelCount, 5);
+  assert.equal(jours[1].modelCount, 2);
+});
+
+test('le repli mono-requête compte une source, pas zéro', () => {
+  // Sans suffixe de modèle, la réponse ne dit pas qui parle — mais quelqu'un
+  // parle, et zéro ferait croire à une journée sans prévision.
+  const [jour] = normalizeForecast({
+    utc_offset_seconds: 0,
+    daily: {
+      time: ['2026-09-01'],
+      apparent_temperature_max: [24],
+      apparent_temperature_min: [14],
+      temperature_2m_min: [13],
+      temperature_2m_max: [24],
+    },
+  });
+
+  assert.equal(jour.modelCount, 1);
 });

@@ -159,6 +159,21 @@ function spreadOfDay(hours) {
   return ecarts.length > 0 ? median(ecarts) : null;
 }
 
+/**
+ * Combien de centres de prévision ont réellement parlé ce jour-là.
+ *
+ * On compte sur l'`apparent_temperature_max` et non sur n'importe quelle
+ * variable : c'est la grandeur sur laquelle tout le moteur décide. Un modèle qui
+ * publie la température mais pas le ressenti ne compte pas pour ce qui nous sert.
+ *
+ * Sans modèle nommé — le repli mono-requête — on lit le champ sans suffixe : il
+ * y a bien une source, et rendre zéro ferait passer la journée pour muette.
+ */
+function modelCountOf(daily, models, i) {
+  const valeurs = acrossModels(daily, 'apparent_temperature_max', models, i);
+  return valeurs.filter((v) => Number.isFinite(v)).length;
+}
+
 export function normalizeForecast(payload) {
   const daily = payload?.daily;
   if (!daily || !Array.isArray(daily.time)) {
@@ -230,6 +245,9 @@ export function normalizeForecast(payload) {
       utcOffsetSeconds: orDefault(payload.utc_offset_seconds),
       hours,
       feelsLikeSpread: spreadOfDay(hours),
+      // Ce que l'app doit savoir pour ne pas paraître sûre d'elle au douzième
+      // jour, quand il ne reste qu'un modèle ou deux.
+      modelCount: modelCountOf(daily, models, i),
     };
   });
 }
