@@ -1,7 +1,7 @@
 # Design — L'assistant valise
 
 Date : 2026-08-28
-Statut : validé en conversation, en attente de relecture
+Statut : validé
 
 ## Objectif
 
@@ -85,6 +85,12 @@ sac tout seul, sans que personne comprenne pourquoi.
 Conséquence retenue : quand une racine donne deux poids (voir plus bas), **les deux poids
 sont une seule ligne**, avec une seule coche. Un crochet, une coche.
 
+Une exception, qui suit le même raisonnement jusqu'au bout : la couche extérieure est unique
+toutes racines confondues, donc sa clé n'est pas une racine mais **`couche`**. Sinon la
+prévision qui se précise ferait passer d'`imperméable` à `manteau`, la clé changerait, et la
+coche tomberait — exactement ce que la racine était censée empêcher. Un seul crochet pour la
+couche, quelle que soit la pièce qui y pend.
+
 ### Une coche par ligne, pas par unité
 
 « 7 t-shirts » se coche une fois. Sept gestes pour une ligne feraient de l'app un
@@ -156,7 +162,7 @@ Produit par `packing.js`, consommé par `phrasing.js` et par l'écran.
 
 ```js
 {
-  trip: { id, start, end },
+  trip,                               // le voyage tel quel : phrasing y lit les villes
   days: TripDay[],
   wear: [
     {
@@ -279,6 +285,13 @@ l'emporte » donnerait *deux pulls épais*, ce qui est bête. Règle retenue, en
 - 3 exemplaires, deux poids → `2 pulls épais` + `1 pull fin`.
 
 Une seule ligne dans tous les cas, une seule coche : c'est le même crochet du placard.
+
+**« Plus couvrant » ne se lit pas dans une table**, sauf pour la couche extérieure dont les
+quatre valeurs sont fixées plus haut. Pour le haut et le bas, il se déduit des données : le
+poids demandé par la journée la plus froide — le plus petit `dressedFor` — est le plus
+couvrant. Une table de noms complets aurait dû lister « pull épais », « chemise légère »,
+« pantalon léger ou jupe » et tout ce qu'un futur palier ajoutera ; elle aurait pourri en
+silence au premier mot changé dans `rules.js`.
 
 ### Les risques, groupés
 
