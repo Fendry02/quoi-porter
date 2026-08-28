@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildTrip, isTrip, quantityFor } from '../js/packing.js';
+import { applyPacked, buildTrip, isTrip, prunePacked, quantityFor } from '../js/packing.js';
 
 const MORNING = new Date('2026-09-01T08:00:00Z');
 
@@ -608,4 +608,79 @@ test('un séjour sans risque n’invente pas de note', () => {
   const { trip, forecasts } = sejour([22, 22]);
 
   assert.deepEqual(buildTrip(trip, forecasts, MORNING).notes, []);
+});
+
+/* ------------------------------------------------------------- les coches */
+
+test('une coche survit au pull fin qui devient un pull épais', () => {
+  // La veille du départ, la météo se précise. La clé est la racine, donc le
+  // crochet du placard est le même, donc la coche reste.
+  const doux = sejour([12, 12]);
+  const froid = sejour([2, 2]);
+
+  const avant = applyPacked(buildTrip(doux.trip, doux.forecasts, MORNING), ['pull']);
+  const apres = applyPacked(buildTrip(froid.trip, froid.forecasts, MORNING), ['pull']);
+
+  assert.equal(ligne(avant, 'pull').pieces[0].name, 'pull fin');
+  assert.equal(ligne(apres, 'pull').pieces[0].name, 'pull épais');
+  assert.equal(ligne(avant, 'pull').packed, true);
+  assert.equal(ligne(apres, 'pull').packed, true, 'le même crochet, la même coche');
+});
+
+test('une coche survit à l’imperméable qui devient un manteau', () => {
+  const pluvieux = { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 };
+  const doux = sejour([18], { 0: pluvieux });
+  const glacial = sejour([-2], { 0: pluvieux });
+
+  const avant = applyPacked(buildTrip(doux.trip, doux.forecasts, MORNING), ['couche']);
+  const apres = applyPacked(buildTrip(glacial.trip, glacial.forecasts, MORNING), ['couche']);
+
+  assert.equal(ligne(avant, 'couche').pieces[0].name, 'imperméable');
+  assert.equal(ligne(apres, 'couche').pieces[0].name, 'manteau');
+  assert.equal(ligne(apres, 'couche').packed, true);
+});
+
+test('ce qu’on emporte se coche aussi', () => {
+  const pluvieux = { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 };
+  const { trip, forecasts } = sejour([16], { 0: pluvieux });
+  const valise = applyPacked(buildTrip(trip, forecasts, MORNING), ['parapluie']);
+
+  assert.equal(valise.carry.find((i) => i.key === 'parapluie').packed, true);
+});
+
+test('l’avancement compte les lignes, portées et emportées', () => {
+  const pluvieux = { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 };
+  const { trip, forecasts } = sejour([16, 16], { 0: pluvieux });
+  const valise = applyPacked(buildTrip(trip, forecasts, MORNING), ['t-shirt', 'parapluie']);
+
+  assert.equal(valise.progress.done, 2);
+  assert.equal(
+    valise.progress.total,
+    valise.wear.length + valise.carry.length,
+    'toutes les lignes comptent, pas les exemplaires',
+  );
+});
+
+test('sans coche, rien n’est coché et l’avancement est à zéro', () => {
+  const { trip, forecasts } = sejour([22]);
+  const valise = applyPacked(buildTrip(trip, forecasts, MORNING), []);
+
+  assert.equal(valise.progress.done, 0);
+  assert.equal(valise.wear.every((i) => i.packed === false), true);
+});
+
+test('une clé devenue sans objet s’élague', () => {
+  // On avait coché un manteau ; le séjour est devenu estival. La clé n'a plus
+  // rien à désigner et ne doit pas dormir sur le disque.
+  const { trip, forecasts } = sejour([27]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  assert.deepEqual(prunePacked(valise, ['couche', 't-shirt']), ['t-shirt']);
+});
+
+test('l’élagage garde l’ordre des coches', () => {
+  const { trip, forecasts } = sejour([27, 27]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  assert.deepEqual(prunePacked(valise, ['short', 't-shirt']), ['short', 't-shirt']);
 });

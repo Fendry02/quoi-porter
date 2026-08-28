@@ -392,3 +392,53 @@ export function buildTrip(trip, forecasts, at = new Date(), profile = null) {
     horizon: { covered, missing },
   };
 }
+
+/**
+ * Ce qui est déjà dans le sac, posé sur la valise calculée.
+ *
+ * Hors de `buildTrip` à dessein : le calcul de valise ne sait rien de l'état du
+ * sac, et reste donc testable sans coche.
+ *
+ * La coche porte sur la ligne et non sur l'exemplaire. « 7 t-shirts » se coche
+ * une fois : sept gestes pour une ligne feraient de l'app un gestionnaire de
+ * tâches, alors que la quantité est une information.
+ *
+ * @param {object} packing un Packing
+ * @param {string[]} packed les clés déjà dans le sac
+ */
+export function applyPacked(packing, packed) {
+  const cochees = new Set(packed);
+  const marque = (item) => ({ ...item, packed: cochees.has(item.key) });
+
+  const wear = packing.wear.map(marque);
+  const carry = packing.carry.map(marque);
+  const lignes = [...wear, ...carry];
+
+  return {
+    ...packing,
+    wear,
+    carry,
+    progress: {
+      done: lignes.filter((item) => item.packed).length,
+      total: lignes.length,
+    },
+  };
+}
+
+/**
+ * Les coches qui désignent encore quelque chose.
+ *
+ * Appelée à l'écriture : une clé devenue sans objet — le manteau d'un séjour
+ * devenu estival — s'élague au lieu de dormir sur le disque et de recocher une
+ * ligne qui réapparaîtrait des mois plus tard.
+ *
+ * @returns {string[]} les clés retenues, dans l'ordre reçu
+ */
+export function prunePacked(packing, packed) {
+  const existantes = new Set([
+    ...packing.wear.map((item) => item.key),
+    ...packing.carry.map((item) => item.key),
+  ]);
+
+  return packed.filter((key) => existantes.has(key));
+}
