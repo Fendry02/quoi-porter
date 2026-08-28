@@ -373,6 +373,16 @@ test('le bas se renouvelle un pour quatre jours', () => {
   assert.equal(ligne(buildTrip(trip, forecasts, MORNING), 'pantalon').count, 2);
 });
 
+test('quatre jours pile distinguent une période de quatre d’une période de trois', () => {
+  // À cinq jours (test précédent), une période de trois donnerait la même
+  // réponse qu'une période de quatre : ceil(5/3) = ceil(5/4) = 2, le nombre
+  // de jours ne prouve rien à lui seul. À quatre jours pile, les deux se
+  // séparent : ceil(4/4) = 1, ceil(4/3) = 2 — seule la bonne période passe.
+  const { trip, forecasts } = sejour(Array.from({ length: 4 }, () => 22));
+
+  assert.equal(ligne(buildTrip(trip, forecasts, MORNING), 'pantalon').count, 1);
+});
+
 test('short et jean coexistent : deux racines, deux lignes', () => {
   const { trip, forecasts } = sejour([27, 27, 10, 10]);
   const valise = buildTrip(trip, forecasts, MORNING);
@@ -417,6 +427,22 @@ test('jamais deux couches extérieures : la plus couvrante gagne', () => {
   assert.equal(valise.wear.filter((i) => i.key === 'couche').length, 1);
 });
 
+test('la table de couverture tranche, même quand le jour le plus froid dirait l’inverse', () => {
+  // Un jour venteux à 12 °C sort un coupe-vent ; un jour calme à 6 °C, plus
+  // froid, sort une veste. Un tri au ressenti le plus froid choisirait la
+  // veste — elle est demandée par le jour le plus froid des deux. La table
+  // choisit le coupe-vent : c'est `OUTER_ORDER`, pas la température, qui fixe
+  // la couverture des couches extérieures (voir le commentaire de `byCoverage`).
+  const { trip, forecasts } = sejour([12, 6], {
+    0: { windGustsKmh: 50 },
+  });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const couche = ligne(valise, 'couche');
+  assert.equal(couche.count, 1);
+  assert.deepEqual(couche.pieces, [{ name: 'coupe-vent', count: 1 }]);
+});
+
 test('ce qu’on emporte compte un exemplaire, quel que soit le nombre de jours', () => {
   const pluvieux = { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 };
   const { trip, forecasts } = sejour([16, 16, 16], { 0: pluvieux, 1: pluvieux, 2: pluvieux });
@@ -435,6 +461,31 @@ test('le grand froid renouvelle sa sous-couche, pas son pull', () => {
   assert.equal(ligne(valise, 'pull').count, 2, 'six jours de pull épais, un pour trois');
 });
 
+test('un seul exemplaire prend le poids le plus couvrant, pas le premier porté', () => {
+  // Le pull fin est porté le premier jour, le pull épais le second : dans cet
+  // ordre, un tri manquant ou une lecture brute du premier élément renverrait
+  // le pull fin. C'est pourtant le pull épais, le plus couvrant des deux, qui
+  // doit sortir — peu importe qu'il arrive en second.
+  const { trip, forecasts } = sejour([11, -2]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const pull = ligne(valise, 'pull');
+  assert.equal(pull.count, 1);
+  assert.deepEqual(pull.pieces, [{ name: 'pull épais', count: 1 }]);
+});
+
+test('deux exemplaires prennent un de chaque poids, le plus couvrant en tête', () => {
+  const { trip, forecasts } = sejour([11, 11, -2, -2]);
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const pull = ligne(valise, 'pull');
+  assert.equal(pull.count, 2);
+  assert.deepEqual(pull.pieces, [
+    { name: 'pull épais', count: 1 },
+    { name: 'pull fin', count: 1 },
+  ]);
+});
+
 test('une racine inconnue du barème tombe dans la classe relais', () => {
   // Un palier ajouté plus tard, un mot changé dans rules.js : mieux vaut une
   // pièce de trop qu'une pièce oubliée. Aucune prévision réelle ne peut
@@ -447,6 +498,14 @@ test('le plafond ne s’applique qu’aux pièces de peau', () => {
   assert.deepEqual(quantityFor('t-shirt', 10), { count: 7, capped: true });
   assert.deepEqual(quantityFor('pull', 30), { count: 10, capped: false });
   assert.deepEqual(quantityFor('couche', 30), { count: 1, capped: false });
+});
+
+test('le plafond ne mord qu’au-delà de sept, jamais à sept pile', () => {
+  // `> DAILY_CAP`, pas `>=` : sept jours d'affilée avec le même t-shirt est
+  // encore un usage ordinaire d'une pièce de peau, la coupe ne doit tomber
+  // qu'au huitième jour.
+  assert.deepEqual(quantityFor('t-shirt', 7), { count: 7, capped: false });
+  assert.deepEqual(quantityFor('t-shirt', 8), { count: 7, capped: true });
 });
 
 test('le vestiaire choisi traverse l’agrégation', () => {

@@ -184,9 +184,9 @@ export function quantityFor(key, dayCount) {
 
   const period = PERIODS[key] ?? FALLBACK_PERIOD;
   const brut = Math.ceil(dayCount / period);
-  const plafonne = period === 1 && brut > DAILY_CAP;
+  const capped = period === 1 && brut > DAILY_CAP;
 
-  return { count: plafonne ? DAILY_CAP : brut, capped: plafonne };
+  return { count: capped ? DAILY_CAP : brut, capped };
 }
 
 /**
