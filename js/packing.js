@@ -30,14 +30,27 @@ import { buildOutfit, garmentRoot } from './rules.js';
  * Sans cette exigence ici, une étape reculée ou redondante resterait
  * représentable, et se ferait réinterpréter en silence plus loin.
  *
+ * `packed` fait partie du contrat au même titre, même vide : c'est le tableau
+ * des clés déjà dans le sac, et rien plus loin ne revérifie sa forme avant de
+ * le lire — `trip.packed.includes(...)` plante sur un voyage qui ne l'a
+ * jamais eu, écrit par une version antérieure ou modifié à la main. Un
+ * tableau vide reste accepté : une valise pas encore commencée est le cas
+ * ordinaire, pas l'exception.
+ *
+ * Le nom de chaque étape compte autant que ses coordonnées : elles suffisent
+ * à situer l'étape, mais c'est le nom qui titre l'écran. Absent ou réduit à
+ * des espaces, l'écran afficherait `undefined` ou un blanc là où on attend le
+ * nom de la ville.
+ *
  * @param {unknown} trip
  * @returns {boolean}
  */
 export function isTrip(trip) {
   if (!trip || typeof trip !== 'object') return false;
 
-  const { id, start, end, stops } = trip;
+  const { id, start, end, stops, packed } = trip;
   if (!id || !start || !end) return false;
+  if (!Array.isArray(packed)) return false;
   if (!Array.isArray(stops) || stops.length === 0) return false;
 
   // La première étape commence au départ, sans quoi le premier jour du séjour
@@ -54,7 +67,9 @@ export function isTrip(trip) {
     (stop) =>
       typeof stop?.from === 'string' &&
       Number.isFinite(stop.place?.latitude) &&
-      Number.isFinite(stop.place?.longitude),
+      Number.isFinite(stop.place?.longitude) &&
+      typeof stop.place?.name === 'string' &&
+      stop.place.name.trim() !== '',
   );
 }
 

@@ -268,7 +268,40 @@ test('un voyage lisible est reconnu, un voyage abîmé est écarté', () => {
     'la première étape commence au départ, sinon le premier jour n’a pas de ville',
   );
   assert.equal(isTrip({ ...bon, start: undefined }), false);
+
+  const sansPacked = { ...bon };
+  delete sansPacked.packed;
+  assert.equal(
+    isTrip(sansPacked),
+    false,
+    'un voyage sans clés emportées ferait planter l’écran sur `trip.packed.includes(...)`',
+  );
+  assert.equal(
+    isTrip({ ...bon, packed: 'chemise' }),
+    false,
+    'les clés emportées ne se lisent que dans un tableau, pas dans une chaîne',
+  );
+  assert.equal(
+    isTrip({ ...bon, packed: [] }),
+    true,
+    'un voyage dont la valise n’est pas commencée reste lisible',
+  );
+
   assert.equal(isTrip({ ...bon, stops: [{ place: { name: 'X' }, from: '2026-09-02' }] }), false);
+
+  const sansNom = { ...LISBONNE };
+  delete sansNom.name;
+  assert.equal(
+    isTrip({ ...bon, stops: [{ place: sansNom, from: '2026-09-02' }] }),
+    false,
+    'une étape sans nom ne pourrait pas titrer l’écran',
+  );
+  assert.equal(
+    isTrip({ ...bon, stops: [{ place: { ...LISBONNE, name: '   ' }, from: '2026-09-02' }] }),
+    false,
+    'un nom blanc ne vaut pas mieux qu’un nom absent pour le titre de l’écran',
+  );
+
   assert.equal(isTrip(null), false);
 });
 
