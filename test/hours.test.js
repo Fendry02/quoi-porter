@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { relevantHours, spanOf, peakOf, phraseSpan, phraseHour, shortSpan } from '../js/hours.js';
+import { relevantHours, spanOf, peakOf, phraseSpan, phraseHour, shortSpan, dayLabel } from '../js/hours.js';
 
 function day(overrides = {}) {
   return {
@@ -154,4 +154,15 @@ test('l’horodatage ne se coupe jamais en fin de ligne', () => {
 
 test('minuit se dit 0 h, pas rien', () => {
   assert.equal(shortSpan({ from: 0, to: 3 }), `0–3${NBSP}h`);
+});
+
+test('le libellé d’une journée nomme le jour, le mois, et dit « aujourd’hui »', () => {
+  assert.equal(dayLabel('2026-09-09', false), 'mer. 9 sept.');
+  assert.equal(dayLabel('2026-09-09', true), 'Aujourd’hui');
+});
+
+test('le libellé ne bascule pas sur le jour voisin selon le fuseau du lecteur', () => {
+  // La date est déjà locale au lieu : la lire à minuit ferait basculer d'un jour
+  // dans un fuseau négatif. D'où l'heure de midi dans la conversion.
+  assert.match(dayLabel('2026-01-01', false), /1 janv\./);
 });

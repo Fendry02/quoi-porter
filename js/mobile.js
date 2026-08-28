@@ -8,7 +8,7 @@
  * deux plateformes.
  */
 
-import { placeDate } from './hours.js';
+import { dayLabel, placeDate } from './hours.js';
 import { laterAdvice } from './moments.js';
 import { describeDay, versusYesterday } from './phrasing.js';
 import { buildOutfit } from './rules.js';
@@ -16,21 +16,7 @@ import { buildOutfit } from './rules.js';
 const WEEK_LENGTH = 7;
 
 /**
- * Libellé calendaire stable : la date météo est déjà locale au lieu consulté.
- * Midi évite que la conversion d'un ISO sans fuseau ne bascule au jour voisin.
- */
-function dayLabel(date, isToday) {
-  if (isToday) return 'Aujourd’hui';
-
-  return new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  }).format(new Date(`${date}T12:00:00`));
-}
-
-/**
- * Les sept journées prêtes à afficher dans l'app : le calcul de tenue et la
+ * Les sept journées prêtes à afficher dans l’app : le calcul de tenue et la
  * formulation restent les mêmes que sur le web, sans duplication de règles.
  *
  * @param {object[]} forecast les DayWeather normalisés par weather.js

@@ -128,3 +128,22 @@ export function shortSpan(span) {
 
   return `${span.from}–${span.to}${NBSP}h`;
 }
+
+/**
+ * Libellé calendaire d'une journée.
+ *
+ * La date météo est déjà locale au lieu consulté ; midi évite que la conversion
+ * d'un ISO sans fuseau ne bascule au jour voisin.
+ *
+ * @param {string} date date ISO courte, locale au lieu
+ * @param {boolean} isToday
+ */
+export function dayLabel(date, isToday) {
+  if (isToday) return 'Aujourd’hui';
+
+  return new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(`${date}T12:00:00`));
+}
