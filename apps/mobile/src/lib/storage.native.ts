@@ -1,10 +1,12 @@
 import Storage from 'expo-sqlite/kv-store';
 
-import type { Place, Profile, WidgetData } from './types';
+import { isTrip } from '@/core/packing';
+import type { Place, Profile, Trip, WidgetData } from './types';
 
 const PLACE_KEY = 'quoi-porter.place';
 const WIDGET_KEY = 'quoi-porter.widget';
 const PROFILE_KEY = 'quoi-porter.profile';
+const TRIPS_KEY = 'quoi-porter.trips';
 
 /**
  * Les clés d'avant le renommage du projet. Elles ne servent plus à écrire :
@@ -26,10 +28,13 @@ async function read(key: string): Promise<string | null> {
   const value = await Storage.getItem(key);
   if (value !== null) return value;
 
-  const legacy = await Storage.getItem(LEGACY_KEYS[key]);
+  const legacyKey = LEGACY_KEYS[key];
+  if (!legacyKey) return null;
+
+  const legacy = await Storage.getItem(legacyKey);
   if (legacy !== null) {
     await Storage.setItem(key, legacy);
-    await Storage.removeItem(LEGACY_KEYS[key]);
+    await Storage.removeItem(legacyKey);
   }
 
   return legacy;
@@ -73,4 +78,20 @@ export async function getWidgetData(): Promise<WidgetData | null> {
 
 export function storeWidgetData(data: WidgetData) {
   return Storage.setItem(WIDGET_KEY, JSON.stringify(data));
+}
+
+/**
+ * Les voyages gardés sur l'appareil.
+ *
+ * Un voyage non conforme est écarté en silence : écrit par une version
+ * antérieure, ou abîmé, il ne doit pas empêcher l'écran d'ouvrir. On préfère
+ * perdre un voyage que l'accès à tous.
+ */
+export async function getStoredTrips(): Promise<Trip[]> {
+  const trips = parse<Trip[]>(await read(TRIPS_KEY));
+  return Array.isArray(trips) ? trips.filter((trip) => isTrip(trip)) : [];
+}
+
+export function storeTrips(trips: Trip[]) {
+  return Storage.setItem(TRIPS_KEY, JSON.stringify(trips));
 }

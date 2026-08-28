@@ -1,8 +1,10 @@
-import type { Place, Profile, WidgetData } from './types';
+import { isTrip } from '@/core/packing';
+import type { Place, Profile, Trip, WidgetData } from './types';
 
 const PLACE_KEY = 'quoi-porter.place';
 const WIDGET_KEY = 'quoi-porter.widget';
 const PROFILE_KEY = 'quoi-porter.profile';
+const TRIPS_KEY = 'quoi-porter.trips';
 
 /**
  * Les clés d'avant le renommage du projet. Elles ne servent plus à écrire :
@@ -31,10 +33,13 @@ function read(key: string): string | null {
   const value = storage.getItem(key);
   if (value !== null) return value;
 
-  const legacy = storage.getItem(LEGACY_KEYS[key]);
+  const legacyKey = LEGACY_KEYS[key];
+  if (!legacyKey) return null;
+
+  const legacy = storage.getItem(legacyKey);
   if (legacy !== null) {
     storage.setItem(key, legacy);
-    storage.removeItem(LEGACY_KEYS[key]);
+    storage.removeItem(legacyKey);
   }
 
   return legacy;
@@ -78,4 +83,20 @@ export async function getWidgetData(): Promise<WidgetData | null> {
 
 export async function storeWidgetData(data: WidgetData) {
   getStorage()?.setItem(WIDGET_KEY, JSON.stringify(data));
+}
+
+/**
+ * Les voyages gardés sur l'appareil.
+ *
+ * Un voyage non conforme est écarté en silence : écrit par une version
+ * antérieure, ou abîmé, il ne doit pas empêcher l'écran d'ouvrir. On préfère
+ * perdre un voyage que l'accès à tous.
+ */
+export async function getStoredTrips(): Promise<Trip[]> {
+  const trips = parse<Trip[]>(read(TRIPS_KEY));
+  return Array.isArray(trips) ? trips.filter((trip) => isTrip(trip)) : [];
+}
+
+export async function storeTrips(trips: Trip[]) {
+  getStorage()?.setItem(TRIPS_KEY, JSON.stringify(trips));
 }

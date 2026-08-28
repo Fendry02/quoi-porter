@@ -154,3 +154,70 @@ export type TimelineGeometry = {
   peak: { x: number; y: number; hour: number; label: string };
   range: { min: number; max: number };
 };
+
+/** Une ville du séjour, et le jour où l'on y arrive. */
+export type TripStop = {
+  place: Place;
+  from: string;
+};
+
+/**
+ * Un voyage : une tranche de temps continue passée dans plusieurs villes.
+ *
+ * Une étape court de son `from` jusqu'au `from` de la suivante, ou jusqu'à
+ * `end`. Les états absurdes — trou entre deux villes, chevauchement — ne sont
+ * pas exprimables, donc il n'y a rien à valider.
+ */
+export type Trip = {
+  id: string;
+  start: string;
+  end: string;
+  stops: TripStop[];
+  /** Les clés déjà dans le sac. Des racines de vêtement, plus `couche`. */
+  packed: string[];
+};
+
+/** Une journée du séjour : la forme d'une journée de l'accueil, plus son lieu. */
+export type TripDay = Omit<ForecastDay, 'isToday' | 'phrasing'> & {
+  place: Place;
+  phrasing: Omit<ForecastDay['phrasing'], 'versusYesterday' | 'later'>;
+};
+
+/**
+ * Une ligne de la valise.
+ *
+ * `key` est la racine du vêtement — `garmentRoot()` —, sauf la couche
+ * extérieure dont la clé est `couche` : c'est un seul crochet du placard, et la
+ * pièce qui y pend change quand la prévision se précise.
+ */
+export type PackItem = {
+  key: string;
+  count: number;
+  pieces: { name: string; count: number }[];
+  days: string[];
+  capped: boolean;
+  /** Posé par `applyPacked`, absent du calcul brut. */
+  packed?: boolean;
+};
+
+export type Packing = {
+  trip: Trip;
+  days: TripDay[];
+  wear: PackItem[];
+  carry: { key: string; days: string[]; packed?: boolean }[];
+  notes: { kind: string; label: string; text: string; severity: string; days: string[] }[];
+  horizon: { covered: string[]; missing: string[] };
+  /** Posé par `applyPacked`. */
+  progress?: { done: number; total: number };
+};
+
+/** La valise en mots. Aucune date ISO : l'écran ne formate rien. */
+export type PackingWords = {
+  title: string;
+  dates: string;
+  wear: { key: string; label: string; detail: string | null; why: string }[];
+  carry: { key: string; label: string; why: string }[];
+  notes: { label: string; text: string; when: string | null }[];
+  confidence: string | null;
+  horizon: string | null;
+};
