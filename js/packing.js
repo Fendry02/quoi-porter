@@ -284,6 +284,55 @@ function packItems(days) {
   return { wear, carry: [...emportes.values()] };
 }
 
+/** Ordre d'affichage des risques, comme dans `phrasing.js`. */
+const SEVERITY_RANK = { high: 0, medium: 1, low: 2 };
+
+/**
+ * Les risques du séjour, un par sorte.
+ *
+ * Cinq notes de pluie pour cinq jours de pluie sont illisibles : on garde une
+ * note par sorte, avec la liste des jours concernés. Le texte retenu est celui
+ * du jour le plus sévère — on fait sa valise pour le pire jour, pas pour le
+ * jour médian.
+ *
+ * Les horaires disparaissent. « Vers 14 h » a un sens le matin même ; sur une
+ * liste faite trois jours plus tôt, c'est la date qui compte.
+ */
+function packNotes(days) {
+  const parSorte = new Map();
+
+  for (const jour of days) {
+    for (const alert of jour.outfit.alerts) {
+      const existante = parSorte.get(alert.kind);
+
+      if (!existante) {
+        parSorte.set(alert.kind, {
+          kind: alert.kind,
+          label: alert.label,
+          text: alert.hint,
+          severity: alert.severity,
+          days: [jour.id],
+        });
+        continue;
+      }
+
+      existante.days.push(jour.id);
+
+      if (SEVERITY_RANK[alert.severity] < SEVERITY_RANK[existante.severity]) {
+        // Le pire jour donne le ton, et son libellé : « Neige » et « Pluie »
+        // partagent la sorte `rain`, et c'est le moteur qui les distingue.
+        existante.severity = alert.severity;
+        existante.text = alert.hint;
+        existante.label = alert.label;
+      }
+    }
+  }
+
+  return [...parSorte.values()].sort(
+    (a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity],
+  );
+}
+
 /**
  * @param {object} trip le voyage : { id, start, end, stops, packed }
  * @param {object[][]} forecasts un tableau de DayWeather par étape, dans l'ordre
@@ -339,7 +388,7 @@ export function buildTrip(trip, forecasts, at = new Date(), profile = null) {
     days,
     wear,
     carry,
-    notes: [],
+    notes: packNotes(days),
     horizon: { covered, missing },
   };
 }

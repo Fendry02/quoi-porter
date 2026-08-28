@@ -523,3 +523,89 @@ test('les jours d’une ligne nomment les journées qui la réclament, dans l’
     '2026-09-05',
   ]);
 });
+
+/* --------------------------------------------------------- les deux poids */
+
+test('un seul exemplaire pour deux poids : le plus épais l’emporte', () => {
+  // Un pull épais couvre la journée qui voulait un pull fin. L'inverse est faux.
+  const { trip, forecasts } = sejour([12, 2]);
+  const pull = ligne(buildTrip(trip, forecasts, MORNING), 'pull');
+
+  assert.equal(pull.count, 1);
+  assert.deepEqual(pull.pieces, [{ name: 'pull épais', count: 1 }]);
+});
+
+test('deux exemplaires pour deux poids : on prend les deux', () => {
+  const { trip, forecasts } = sejour([12, 12, 12, 2, 2, 2]);
+  const pull = ligne(buildTrip(trip, forecasts, MORNING), 'pull');
+
+  assert.equal(pull.count, 2);
+  assert.deepEqual(pull.pieces, [
+    { name: 'pull épais', count: 1 },
+    { name: 'pull fin', count: 1 },
+  ]);
+});
+
+test('les exemplaires en trop répètent le plus couvrant', () => {
+  const { trip, forecasts } = sejour([12, 12, 12, 12, 2, 2, 2, 2, 2]);
+  const pull = ligne(buildTrip(trip, forecasts, MORNING), 'pull');
+
+  assert.equal(pull.count, 3);
+  assert.deepEqual(pull.pieces, [
+    { name: 'pull épais', count: 2 },
+    { name: 'pull fin', count: 1 },
+  ]);
+});
+
+test('un seul poids demandé reste une seule pièce nommée', () => {
+  const { trip, forecasts } = sejour([22, 22, 22]);
+
+  assert.deepEqual(ligne(buildTrip(trip, forecasts, MORNING), 't-shirt').pieces, [
+    { name: 't-shirt', count: 3 },
+  ]);
+});
+
+/* ------------------------------------------------------- les risques groupés */
+
+test('trois jours de pluie font une note, pas trois', () => {
+  const pluvieux = { precipitationProbability: 80, precipitationMm: 4, weatherCode: 61 };
+  const { trip, forecasts } = sejour([16, 16, 16], { 0: pluvieux, 2: pluvieux });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const pluie = valise.notes.filter((n) => n.kind === 'rain');
+  assert.equal(pluie.length, 1);
+  assert.deepEqual(pluie[0].days, ['2026-09-02', '2026-09-04']);
+  assert.equal(pluie[0].label, 'Pluie');
+});
+
+test('le texte d’un risque est celui du jour le plus sévère', () => {
+  // On fait sa valise pour le pire jour, pas pour le jour médian.
+  const bruine = { precipitationProbability: 45, precipitationMm: 0.5, weatherCode: 61 };
+  const deluge = { precipitationProbability: 95, precipitationMm: 12, weatherCode: 61 };
+  const { trip, forecasts } = sejour([16, 16], { 0: bruine, 1: deluge });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  const pluie = valise.notes.find((n) => n.kind === 'rain');
+  assert.equal(pluie.severity, 'high');
+  assert.match(pluie.text, /va bien pleuvoir/);
+});
+
+test('les risques les plus sévères passent devant', () => {
+  const orageux = {
+    precipitationProbability: 95,
+    precipitationMm: 12,
+    weatherCode: 61,
+    windGustsKmh: 45,
+  };
+  const { trip, forecasts } = sejour([16, 16], { 0: orageux, 1: orageux });
+  const valise = buildTrip(trip, forecasts, MORNING);
+
+  assert.equal(valise.notes[0].severity, 'high');
+  assert.equal(valise.notes[0].kind, 'rain');
+});
+
+test('un séjour sans risque n’invente pas de note', () => {
+  const { trip, forecasts } = sejour([22, 22]);
+
+  assert.deepEqual(buildTrip(trip, forecasts, MORNING).notes, []);
+});
