@@ -12,7 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import Animated, {
   interpolateColor,
   useAnimatedStyle,
@@ -20,7 +20,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 
+import { luminanceOf } from '@/core/weather';
 import type { ForecastDay } from '@/lib/types';
 import { PressableScale } from '@/motion/PressableScale';
 
@@ -35,30 +37,59 @@ const INSET = 3;
 
 type Layout = { x: number; width: number };
 
+/** Le ruban sert l'accueil comme un séjour : il ne demande que ces trois champs. */
+type RailDay = Pick<ForecastDay, 'id' | 'label' | 'weather'>;
+
 function shortDayLabel(label: string) {
   return label === 'Aujourd’hui' ? 'Auj.' : label.replace('.', '');
 }
 
-function dayTemperature(day: ForecastDay) {
+function dayTemperature(day: RailDay) {
   return `${Math.round(day.weather.feelsLikeMin)}–${Math.round(day.weather.feelsLikeMax)}°`;
+}
+
+/**
+ * Le temps de chaque jour se lit dans la forme, pas dans une mosaïque de
+ * données. Les symboles restent ceux de la plate-forme : SF Symbols sur iOS,
+ * Material Symbols sur Android et sur le web — une même intention, jamais des
+ * emoji qui changeraient selon le téléphone.
+ */
+function weatherSymbol(code: number): SymbolViewProps['name'] {
+  if (code >= 95) {
+    return { ios: 'cloud.bolt.rain.fill', android: 'thunderstorm', web: 'thunderstorm' };
+  }
+
+  if ((code >= 71 && code <= 77) || (code >= 85 && code <= 86)) {
+    return { ios: 'cloud.snow.fill', android: 'weather_snowy', web: 'weather_snowy' };
+  }
+
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+    return { ios: 'cloud.rain.fill', android: 'rainy', web: 'rainy' };
+  }
+
+  if (code >= 1 && code <= 3) {
+    return { ios: 'cloud.sun.fill', android: 'partly_cloudy_day', web: 'partly_cloudy_day' };
+  }
+
+  if (code === 45 || code === 48) {
+    return { ios: 'cloud.fog.fill', android: 'cloud', web: 'cloud' };
+  }
+
+  return { ios: 'sun.max.fill', android: 'sunny', web: 'sunny' };
 }
 
 function DayTab({
   active,
   day,
-  horizon,
   ink,
   muted,
-  onMeasure,
   onPress,
   reduced,
 }: {
   active: boolean;
-  day: ForecastDay;
-  horizon: string;
+  day: RailDay;
   ink: string;
   muted: string;
-  onMeasure: (id: string, layout: Layout) => void;
   onPress: () => void;
   reduced: boolean;
 }) {
@@ -69,40 +100,41 @@ function DayTab({
     tint.value = reduced ? target : withTiming(target, { duration: TINT_MS });
   }, [active, reduced, tint]);
 
+  // La pastille emprunte la couleur d'encre du ciel. Ce choix binaire garde
+  // son contenu lisible, y compris quand un ciel de nuit fournit une encre
+  // claire : elle ne peut donc jamais se transformer en case visuellement vide.
+  const activeText = luminanceOf(ink) > 0.5 ? '#0B1A28' : '#F3F7FA';
+
   const labelStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(tint.value, [0, 1], [muted, horizon]),
+    color: interpolateColor(tint.value, [0, 1], [muted, activeText]),
   }));
 
   const tempStyle = useAnimatedStyle(() => ({
-    color: interpolateColor(tint.value, [0, 1], [ink, horizon]),
+    color: interpolateColor(tint.value, [0, 1], [ink, activeText]),
   }));
 
-  const measure = useCallback(
-    (event: LayoutChangeEvent) => {
-      const { width, x } = event.nativeEvent.layout;
-      onMeasure(day.id, { width, x });
-    },
-    [day.id, onMeasure],
-  );
+  const iconTint = active ? activeText : muted;
 
   return (
     <PressableScale
       accessibilityRole="tab"
       accessibilityState={{ selected: active }}
-      onLayout={measure}
       onPress={onPress}
       reduced={reduced}
       scaleTo={0.94}
       style={styles.tab}>
-      <Animated.Text style={[styles.label, labelStyle]}>{shortDayLabel(day.label)}</Animated.Text>
+      <View style={styles.tabHeader}>
+        <Animated.Text style={[styles.label, labelStyle]}>{shortDayLabel(day.label)}</Animated.Text>
+        <SymbolView name={weatherSymbol(day.weather.weatherCode)} size={16} tintColor={iconTint} />
+      </View>
       <Animated.Text style={[styles.temp, tempStyle]}>{dayTemperature(day)}</Animated.Text>
     </PressableScale>
   );
 }
 
 export function DayRail({
+  boundaries = [],
   days,
-  horizon,
   ink,
   muted,
   onSelect,
@@ -110,8 +142,8 @@ export function DayRail({
   selectedId,
   surface,
 }: {
-  days: ForecastDay[];
-  horizon: string;
+  boundaries?: string[];
+  days: RailDay[];
   ink: string;
   muted: string;
   onSelect: (id: string) => void;
@@ -181,17 +213,19 @@ export function DayRail({
         <Animated.View style={[styles.pill, { backgroundColor: ink }, pill]} />
 
         {days.map((day) => (
-          <DayTab
-            active={day.id === selectedId}
-            day={day}
-            horizon={horizon}
-            ink={ink}
-            key={day.id}
-            muted={muted}
-            onMeasure={measure}
-            onPress={() => onSelect(day.id)}
-            reduced={reduced}
-          />
+          <View key={day.id} onLayout={(event) => measure(day.id, event.nativeEvent.layout)} style={styles.tabWrapper}>
+            {boundaries.includes(day.id) ? (
+              <View pointerEvents="none" style={[styles.boundary, { backgroundColor: `${muted}55` }]} />
+            ) : null}
+            <DayTab
+              active={day.id === selectedId}
+              day={day}
+              ink={ink}
+              muted={muted}
+              onPress={() => onSelect(day.id)}
+              reduced={reduced}
+            />
+          </View>
         ))}
       </Animated.View>
     </ScrollView>
@@ -202,7 +236,10 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 28, paddingRight: 20 },
   track: { borderRadius: 17, flexDirection: 'row' },
   pill: { borderRadius: 14, bottom: INSET, left: 0, position: 'absolute', top: INSET },
-  tab: { minWidth: 78, paddingHorizontal: 13, paddingVertical: 13 },
+  tabWrapper: { position: 'relative' },
+  boundary: { bottom: 0, left: -4, position: 'absolute', top: 0, width: StyleSheet.hairlineWidth },
+  tab: { minWidth: 92, paddingHorizontal: 13, paddingVertical: 11 },
+  tabHeader: { alignItems: 'center', flexDirection: 'row', gap: 6, justifyContent: 'space-between' },
   label: { fontSize: 13, fontWeight: '600' },
-  temp: { fontSize: 14, fontVariant: ['tabular-nums'], fontWeight: '700', marginTop: 6 },
+  temp: { fontSize: 14, fontVariant: ['tabular-nums'], fontWeight: '700', marginTop: 7 },
 });

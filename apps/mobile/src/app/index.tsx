@@ -13,17 +13,15 @@
  */
 
 import { StatusBar } from 'expo-status-bar';
+import { useRouter, type Href } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  KeyboardAvoidingView,
   Modal,
   Platform,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
   useColorScheme,
   useWindowDimensions,
@@ -40,6 +38,7 @@ import { Odometer } from '@/motion/Odometer';
 import { PressableScale } from '@/motion/PressableScale';
 import { Reveal } from '@/motion/Reveal';
 import { useMotion } from '@/motion/use-motion';
+import { PlacePicker } from '@/places/PlacePicker';
 import { SkyBackground } from '@/sky/SkyBackground';
 import { useSkyMood } from '@/sky/use-sky-mood';
 import { WardrobeQuestion, wardrobeLabel, wardrobeSentence } from '@/profile/WardrobeQuestion';
@@ -102,105 +101,6 @@ function veilsFor(ink: string, skies: string[]) {
   };
 }
 
-function PlacePicker({
-  visible,
-  onClose,
-  onSelect,
-  reduced,
-  searchPlaces,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onSelect: (place: Place) => Promise<void>;
-  reduced: boolean;
-  searchPlaces: (query: string) => Promise<Place[]>;
-}) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Place[]>([]);
-  const [status, setStatus] = useState<string | null>(null);
-
-  async function search() {
-    const value = query.trim();
-    if (!value) return;
-
-    setStatus('Recherche…');
-    setResults([]);
-
-    try {
-      const places = await searchPlaces(value);
-      setResults(places);
-      setStatus(places.length === 0 ? 'Aucun lieu trouvé. Essaie une autre orthographe.' : null);
-    } catch {
-      setStatus('La recherche a échoué. Réessaie dans un instant.');
-    }
-  }
-
-  async function choose(place: Place) {
-    setStatus('Prévision en cours…');
-    await onSelect(place);
-    setStatus(null);
-    setQuery('');
-    setResults([]);
-    onClose();
-  }
-
-  return (
-    <Modal animationType="slide" presentationStyle="pageSheet" visible={visible} onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', default: undefined })} style={styles.sheet}>
-        <View style={styles.sheetHeader}>
-          <Text accessibilityRole="header" style={styles.sheetTitle}>
-            Choisir une ville
-          </Text>
-          <PressableScale
-            accessibilityRole="button"
-            hitSlop={10}
-            onPress={onClose}
-            reduced={reduced}
-            style={styles.closeButton}>
-            <Text style={styles.closeText}>Fermer</Text>
-          </PressableScale>
-        </View>
-        <View style={styles.searchRow}>
-          <TextInput
-            accessibilityLabel="Ville recherchée"
-            autoCapitalize="words"
-            autoFocus
-            onChangeText={setQuery}
-            onSubmitEditing={search}
-            placeholder="Paris, Lisbonne, Oslo…"
-            placeholderTextColor="#66747D"
-            returnKeyType="search"
-            style={styles.searchInput}
-            value={query}
-          />
-          <PressableScale
-            accessibilityRole="button"
-            onPress={search}
-            reduced={reduced}
-            style={styles.searchButton}>
-            <Text style={styles.searchButtonText}>Chercher</Text>
-          </PressableScale>
-        </View>
-        {status ? <Text style={styles.searchStatus}>{status}</Text> : null}
-        <ScrollView contentContainerStyle={styles.searchResults} keyboardShouldPersistTaps="handled">
-          {results.map((place, rang) => (
-            <Reveal index={rang} key={`${place.latitude}-${place.longitude}`} reduced={reduced}>
-              <PressableScale
-                accessibilityLabel={`Choisir ${place.name}`}
-                accessibilityRole="button"
-                onPress={() => choose(place)}
-                reduced={reduced}
-                style={styles.placeResult}>
-                <Text style={styles.placeResultText}>{place.name}</Text>
-              </PressableScale>
-            </Reveal>
-          ))}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
 export default function HomeScreen() {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const { profile, loading: profileLoading, choose } = useProfile();
@@ -208,8 +108,9 @@ export default function HomeScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [finderOpen, setFinderOpen] = useState(false);
   const [wardrobeOpen, setWardrobeOpen] = useState(false);
+  const router = useRouter();
 
-  const { width, height } = useWindowDimensions();
+  const { width, height, fontScale } = useWindowDimensions();
 
   const selected = useMemo(
     () => days.find((day) => day.id === selectedId) ?? days[0],
@@ -354,7 +255,7 @@ export default function HomeScreen() {
               {/* Pas de rôle « en-tête » ici : le titre est déjà l'étiquette
                   du bouton qui l'entoure, et deux rôles sur le même nœud font
                   annoncer la ville deux fois. */}
-              <Text numberOfLines={2} style={styles.title}>
+              <Text style={styles.title}>
                 <Text style={{ color: ink }}>{cityOf(place)}</Text>
                 <Text style={{ color: muted }}> · {selected.label}</Text>
               </Text>
@@ -430,7 +331,6 @@ export default function HomeScreen() {
 
           <DayRail
             days={days}
-            horizon={sky.horizon}
             ink={ink}
             muted={muted}
             onSelect={setSelectedId}
@@ -439,10 +339,29 @@ export default function HomeScreen() {
             surface={veils.surface}
           />
 
+          {/* Là où l'attention est déjà tournée vers les jours à venir. */}
+          <PressableScale
+            accessibilityHint="Ouvre la valise pour un séjour"
+            accessibilityRole="button"
+            // Les routes typées sont régénérées par Expo au prochain démarrage.
+            // Cette route existe déjà dans l'arborescence, même si son type est
+            // encore celui du démarrage précédent.
+            onPress={() => router.push('/packing' as Href)}
+            reduced={reduced}
+            style={styles.tripLink}>
+            <Text style={[styles.tripLinkText, { color: ink }]}>Tu pars quelque part ? Prévoir ta valise.</Text>
+          </PressableScale>
+
           {/* Le déroulé avant les mesures : savoir quand tombe l'averse compte
               plus que son cumul de la journée. */}
           <View style={[styles.details, { backgroundColor: veils.surface }]}>
-            <DayTimeline at={at} ink={ink} weather={selected.weather} width={chartWidth} />
+            <View style={[styles.detailsHeader, fontScale > 1.3 && styles.detailsHeaderLarge]}>
+              <Text accessibilityRole="header" style={[styles.detailsTitle, { color: ink }]}>
+                La journée
+              </Text>
+              <Text style={[styles.detailsMeta, { color: muted }]}>Ressenti & pluie</Text>
+            </View>
+            <DayTimeline at={at} ink={ink} reduced={reduced} weather={selected.weather} width={chartWidth} />
           </View>
 
           {/* La grille Ressenti / Pluie / Rafales / UV a été retirée : la courbe
@@ -525,7 +444,7 @@ const styles = StyleSheet.create({
   textButton: { justifyContent: 'center', minHeight: 48, marginTop: 12 },
   textButtonText: { fontSize: 16, fontWeight: '600' },
   topline: { alignItems: 'flex-start', flexDirection: 'row', gap: 12, paddingTop: 12 },
-  placeButton: { flex: 1, justifyContent: 'center', minHeight: 44 },
+  placeButton: { flex: 1, justifyContent: 'center', minHeight: Platform.select({ android: 48, default: 44 }) },
   // Sans serif : le serif est réservé au conseil. Le titre est grand, il n'a
   // pas besoin d'être d'une autre famille pour se voir.
   title: { fontSize: 24, fontWeight: '700', letterSpacing: -0.5, lineHeight: 29 },
@@ -537,10 +456,10 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     flexDirection: 'row',
     gap: 3,
-    height: 36,
+    height: Platform.select({ android: 48, default: 36 }),
     justifyContent: 'center',
     marginTop: 4,
-    width: 36,
+    width: Platform.select({ android: 48, default: 36 }),
   },
   dot: { borderRadius: 2, height: 4, width: 4 },
   hero: { paddingBottom: 26, paddingTop: 30 },
@@ -569,7 +488,16 @@ const styles = StyleSheet.create({
   weatherLine: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 18 },
   weatherSentence: { fontSize: 16, lineHeight: SENTENCE_LINE },
   weatherNumber: { fontVariant: ['tabular-nums'] },
-  details: { borderRadius: 16, paddingHorizontal: 16, paddingVertical: 6 },
+  // Un seul écrin pour la courbe : c'est une fenêtre sur le jour, pas une
+  // seconde carte de statistiques. Le titre donne le point d'entrée à la
+  // lecture et la courbe conserve tout l'espace qu'elle mérite.
+  details: { borderRadius: 16, paddingHorizontal: 16, paddingBottom: 6, paddingTop: 15 },
+  detailsHeader: { alignItems: 'baseline', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  detailsHeaderLarge: { alignItems: 'flex-start', flexDirection: 'column', gap: 2 },
+  detailsTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
+  detailsMeta: { fontSize: 13, fontWeight: '600' },
+  tripLink: { justifyContent: 'center', marginTop: 18, minHeight: 44 },
+  tripLinkText: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
   notes: { marginTop: 30 },
   note: { borderTopWidth: StyleSheet.hairlineWidth, paddingVertical: 14 },
   noteLabel: { fontSize: 16, fontWeight: '700', marginBottom: 4 },

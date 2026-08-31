@@ -11,7 +11,7 @@ défiler, et la scène se métamorphose sous le doigt pour passer d'aujourd'hui 
 ![La même page à Bergen : il pleut sur la scène comme dans la prévision](media/apercu-pluie.jpg)
 
 Aucune dépendance, aucune étape de build, aucune clé d'API, aucun backend : du HTML, du CSS
-et des modules ES, plus three.js chargé depuis un CDN. 202 tests sur `node --test`.
+et des modules ES, plus three.js chargé depuis un CDN. 368 tests sur `node --test`.
 
 ## Lancer
 
@@ -46,13 +46,14 @@ Des modules purs au centre, trois contrats de données entre eux : `DayWeather`,
 | `js/sky.js` | **pur** — `DayWeather` + instant → `SkyMood` |
 | `js/ensemble.js` | **pur** — médiane et étendue sur plusieurs modèles météo |
 | `js/hours.js` | **pur** — fenêtre du jour, plages, pics, et leur mise en mots |
+| `js/packing.js` | **pur** — un voyage et ses prévisions → une valise avec ses quantités |
 | `js/timeline.js` | **pur** — `DayWeather` + instant → géométrie du déroulé horaire |
 | `js/scene/` | le moteur three.js : dôme, nuages, précipitations, qualité |
 | `js/render.js` | DOM |
 | `js/main.js` | orchestration |
 
 Les modules purs ne touchent ni au réseau ni au DOM : ils sont testés en isolation, et
-réutilisables tels quels par le futur assistant valise.
+réutilisables tels quels par l'assistant valise mobile.
 
 **La tenue passe avant tout le reste**, et elle est entière : haut, bas, couche extérieure,
 puis ce qu'on emporte. C'est la seule chose que la page a promis de dire, donc c'est la
@@ -159,10 +160,23 @@ une absence pour zéro ferait passer une journée pluvieuse pour sèche.
 Si la requête d'ensemble échoue, on retombe sur une requête simple — et on affiche alors
 franchement aucun désaccord plutôt que d'en inventer un.
 
-## À venir
+## La valise
 
-L'assistant valise : « je pars 3 jours là-bas, dis-moi quoi emporter ». Il appliquera
-`rules.js` à chacun des N jours du séjour et unira les tenues obtenues.
+« Je pars du 8 au 13 septembre à Lisbonne puis à Porto » — `packing.js` applique
+`rules.js` à chacune des journées du séjour, puis unit les tenues obtenues.
+
+**La quantité vient des jours qui réclament la pièce**, pas de la durée du séjour : cinq
+jours dont deux frais donnent un pull, pas cinq. Les pièces portées à même la peau se
+renouvellent chaque jour, plafonnées à sept — au-delà on lave, et la ligne le dit.
+
+**La coche tient à la racine du vêtement.** La veille du départ la météo se précise, le
+pull fin devient un pull épais, et la coche reste : c'est le même crochet du placard. La
+couche extérieure a pour clé `couche` et non sa racine, pour la même raison — elle est
+unique, et la pièce qui y pend change.
+
+**Un voyage est une tranche de temps continue passée dans plusieurs villes**, décrite par
+un départ, un retour, et le jour d'arrivée dans chaque ville. Les trous et les
+chevauchements ne sont pas exprimables, donc il n'y a rien à valider.
 
 ## Une limite assumée
 

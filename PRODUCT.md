@@ -32,6 +32,9 @@ The main use is a quick morning check on a phone. A home-screen widget provides 
 - V1 includes the seven-day mobile app and a minimal, reliable “Today” widget.
 - Forecasts come from Open-Meteo without a user account, server, or API secret.
 - Current place is found with device location or city search and remembered locally.
+- The packing assistant covers a multi-city stay within the coming sixteen days; beyond
+  that, the app says plainly that the forecast does not exist yet.
+- Trips and their packed-item checks stay on the device, with no account or server.
 - The existing web version remains available during the mobile migration.
 - Native widgets have platform-specific implementations and refresh limits; their content remains intentionally compact.
 

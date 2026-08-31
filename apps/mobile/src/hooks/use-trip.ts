@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { applyPacked, buildTrip, describePacking } from '@/core/packing';
+import { applyPacked, buildTrip, describePacking, prunePacked } from '@/core/packing';
 import { fetchForecast } from '@/core/weather';
 // Metro sélectionne storage.native.ts ou storage.web.ts selon la plateforme.
 // eslint-disable-next-line import/no-unresolved
@@ -69,6 +69,12 @@ export function useTrip(profile: Profile | null) {
     const jour = today();
     return trips.filter((t) => t.end >= jour).sort((a, b) => (a.start < b.start ? -1 : 1))[0] ?? null;
   }, [trips, selectedId]);
+
+  // Les coches changent l'objet `trip`, sans changer les requêtes à faire. Une
+  // clé stable du séjour évite qu'un t-shirt coché rappelle Open-Meteo.
+  const stopsKey = trip
+    ? `${trip.id}:${trip.start}:${trip.end}:${trip.stops.map((stop) => `${stop.from}@${stop.place.name}`).join('|')}`
+    : null;
 
   useEffect(() => {
     let vivant = true;
@@ -166,7 +172,10 @@ export function useTrip(profile: Profile | null) {
   useEffect(() => {
     if (!pret) return;
     void Promise.resolve().then(() => load(trip));
-  }, [load, trip, pret]);
+    // `trip` est volontairement absent : `stopsKey` est précisément la partie
+    // qui doit déclencher une nouvelle prévision. Les coches restent locales.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, pret, stopsKey]);
 
   const packing = useMemo<Packing | null>(() => {
     if (!trip || forecasts.length === 0) return null;
@@ -187,6 +196,21 @@ export function useTrip(profile: Profile | null) {
     await storeTrips(suivants);
   }, [trips]);
 
+  /** Cocher une ligne ne recharge pas la météo : seul le contenu du sac change. */
+  const toggle = useCallback(
+    async (key: string) => {
+      if (!trip) return;
+
+      const packed = trip.packed.includes(key)
+        ? trip.packed.filter((candidate) => candidate !== key)
+        : [...trip.packed, key];
+      const retained = packing ? (prunePacked(packing, packed) as string[]) : packed;
+
+      await save({ ...trip, packed: retained });
+    },
+    [packing, save, trip],
+  );
+
   const remove = useCallback(async (id: string) => {
     const suivants = trips.filter((t) => t.id !== id);
     setTrips(suivants);
@@ -204,6 +228,7 @@ export function useTrip(profile: Profile | null) {
     loading,
     error,
     save,
+    toggle,
     remove,
     select: setSelectedId,
     refresh,

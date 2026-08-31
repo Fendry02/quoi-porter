@@ -2,7 +2,7 @@
   "expo": {
     "name": "QuoiPorter",
     "slug": "quoi-porter",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/images/quoi-porter-icon-v2.png",
     "scheme": "quoi-porter",
@@ -10,7 +10,7 @@
     "ios": {
       "appleTeamId": "K2LUP8LQQY",
       "bundleIdentifier": "com.weatherclothes.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Ta position permet de proposer une tenue adaptée à la météo locale.",
         "ITSAppUsesNonExemptEncryption": false,
